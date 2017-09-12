@@ -38,18 +38,44 @@ class Span(namedtuple("Span", ['begin', 'end'])):
         else:
             return self.begin < other.begin
 
-
+DEFAULT_VIEW = "SpandexDefaultView"
 
 
 # object is mutable for performant reasons
 class Spandex(object):
 
-
-    def __init__(self, text):
+    def __init__(self, text, root=None, viewname=None):
         self.content = text 
         self.annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
+
+        if not root:
+            self.viewname = DEFAULT_VIEW
+            self.views = {
+                DEFAULT_VIEW: self
+            }
+        else:
+            self.viewname = viewname
+            self.views = None
+
+        self.root = root
+
+    def get_view(self, viewname):
+        root = self if not self.root else self.root
+
+        view = None
+        try:
+            view = root.views[viewname]
+        except KeyError as e:
+            raise KeyError("No view named '{}' in Spandex {}".format(viewname, root))
+
+        return view
+
+    def create_view(self, viewname, content):
+        new_view_spndx = Spandex(content, self, viewname)
+        self.views[viewname] = new_view_spndx
+
 
     def compute_keys(self, layer_annotations):
         return [a[0][0] for a in layer_annotations]
