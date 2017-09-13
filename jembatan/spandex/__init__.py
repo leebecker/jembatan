@@ -4,6 +4,10 @@ from functools import total_ordering
 
 @total_ordering
 class Span(namedtuple("Span", ['begin', 'end'])):
+    """
+    A class defining offsets and spans over textual content.  The ordering of these
+    allows for convenient query within a Spandex
+    """
 
     @property
     def topair(self):
@@ -38,7 +42,50 @@ class Span(namedtuple("Span", ['begin', 'end'])):
         else:
             return self.begin < other.begin
 
-DEFAULT_VIEW = "SpandexDefaultView"
+class DefaultViewOps(object):
+
+    def __init__(self):
+        pass
+
+    def get_view(self, spndx, viewname):
+
+        root = spndx.root
+
+        view = None
+
+        try:
+            view = root.views[viewname]
+        except KeyError as e:
+            raise KeyError("No view named '{}' in Spandex {}".format(viewname, root))
+
+        return view
+
+    def create_view(self, spndx, viewname, content):
+        root = spndx if not spndx.root else spndx.root
+
+        new_view_spndx = Spandex(content, root, viewname)
+        if viewname in root.views:
+            raise KeyError("View {} already exists in Spandex{}".format(viewname, root))
+        root.views[viewname] = new_view_spndx
+        return new_view_spndx
+
+class ViewMappedViewOps(DefaultViewOps):
+    """ Overrides ViewOps by resolving view names by way of a view_map
+    """
+
+    def __init__(self, view_map):
+        self.view_map = view_map
+
+    def get_view(self, spndx, viewname):
+        mapped_viewname = self.view_map[viewname]
+        return super(ViewMappedViewOps, self).get_view(spndx, mapped_viewname)
+
+    def create_view(self, spndx, viewname, content):
+        mapped_viewname = self.view_map[viewname]
+        return super(ViewMappedViewOps, self).create_view(spndx, mapped_viewname, content)
+
+
+SPANDEX_DEFAULT_VIEW = "_SpandexDefaultView"
 
 
 # object is mutable for performant reasons
@@ -49,32 +96,32 @@ class Spandex(object):
         self.annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
+        self.viewops = DefaultViewOps()
 
         if not root:
-            self.viewname = DEFAULT_VIEW
-            self.views = {
-                DEFAULT_VIEW: self
+            self.viewname = SPANDEX_DEFAULT_VIEW
+            self._views = {
+                SPANDEX_DEFAULT_VIEW: self
             }
+            self.root = self
         else:
             self.viewname = viewname
-            self.views = None
+            self._views = None
+            self.root = root
 
-        self.root = root
+    @property
+    def is_root(self):
+        return self.root == self
 
     def get_view(self, viewname):
-        root = self if not self.root else self.root
-
-        view = None
-        try:
-            view = root.views[viewname]
-        except KeyError as e:
-            raise KeyError("No view named '{}' in Spandex {}".format(viewname, root))
-
-        return view
+        return self.viewops.get_view(self, viewname)
 
     def create_view(self, viewname, content):
-        new_view_spndx = Spandex(content, self, viewname)
-        self.views[viewname] = new_view_spndx
+        return self.viewops.create_view(self, viewname, content)
+    
+    @property
+    def views(self):
+        return self.root._views
 
 
     def compute_keys(self, layer_annotations):
@@ -130,3 +177,36 @@ class Spandex(object):
         layer = self.aliases.get(layer, layer)
         end = bisect.bisect_right(spannedex.annotation_keys[layer], span.end)
         return self.annotations[layer][end:]
+
+
+
+class ViewMappedSpandex(Spandex):
+
+    def __init__(self, wrapped_spandex, view_map):
+        """
+
+        Args:
+        wrapped_spandex (Spandex) - The original Spandex which we want to inject
+            a view mapping
+        view_map (dict) - A map between the names used by the 
+            analyzer function and the names specified by the pipeline
+        """
+        self.wrapped_spandex = wrapped_spandex
+        self.viewops = AliasedViewOps(view_map)
+
+    def __getattr__(self, attr):
+
+        if attr in ["get_view", "create_view"]:
+            return self.__getattribute__(attr)
+        else: 
+            return self.wrapped_spandex.__getattribute__(attr)
+
+    def get_view(self, viewname):
+        view = self.viewops.get_view(self.wrapped_spandex, viewname)
+        return ViewMappedSpandex(view, self.viewops)
+
+    def create_view(self, viewname, content):
+        view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
+        return ViewMappedSpandex(view, self.viewops)
+
+
