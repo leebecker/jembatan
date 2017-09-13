@@ -63,8 +63,6 @@ class AggregateSpandexAnnotator(SpandexAnnotator):
         """ create empty Aggregate Annotator 
         """
         self.annotators = []
-        if annotators:
-            self.add(annotators)
         self.view_maps = []
 
     def add(self, annotator, view_map=None):
