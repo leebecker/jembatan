@@ -111,12 +111,19 @@ class Spandex(object):
             self._views = None
             self.root = root
 
+    def __repr__(self):
+        return "<{}/{} at 0x{:x}>".format(self.__class__.__name__, self.viewname, id(self))
+
+
     @property
     def is_root(self):
         return self.root == self
 
     def get_view(self, viewname):
         return self.viewops.get_view(self, viewname)
+
+    def __getitem__(self, viewname):
+        return self.get_view(viewname)
 
     def create_view(self, viewname, content):
         return self.viewops.create_view(self, viewname, content)
@@ -194,11 +201,11 @@ class ViewMappedSpandex(Spandex):
             analyzer function and the names specified by the pipeline
         """
         self.wrapped_spandex = wrapped_spandex
-        self.viewops = AliasedViewOps(view_map)
+        self.viewops = ViewMappedViewOps(view_map)
 
     def __getattr__(self, attr):
 
-        if attr in ["get_view", "create_view"]:
+        if attr in ["get_view", "create_view", "__getitem__"]:
             return self.__getattribute__(attr)
         else: 
             return self.wrapped_spandex.__getattribute__(attr)
@@ -207,8 +214,10 @@ class ViewMappedSpandex(Spandex):
         view = self.viewops.get_view(self.wrapped_spandex, viewname)
         return ViewMappedSpandex(view, self.viewops)
 
+    def __getitem__(self, viewname):
+        return self.get_view(viewname)
+
     def create_view(self, viewname, content):
         view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
         return ViewMappedSpandex(view, self.viewops)
-
 
