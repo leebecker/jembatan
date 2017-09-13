@@ -85,7 +85,9 @@ class ViewMappedViewOps(DefaultViewOps):
         return super(ViewMappedViewOps, self).create_view(spndx, mapped_viewname, content)
 
 
-SPANDEX_DEFAULT_VIEW = "_SpandexDefaultView"
+SpandexConstants = namedtuple("SpandexContstants", 
+        ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
+constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 
 
 # object is mutable for performant reasons
@@ -99,9 +101,9 @@ class Spandex(object):
         self.viewops = DefaultViewOps()
 
         if not root:
-            self.viewname = SPANDEX_DEFAULT_VIEW
+            self.viewname = constants.SPANDEX_DEFAULT_VIEW
             self._views = {
-                SPANDEX_DEFAULT_VIEW: self
+                constants.SPANDEX_DEFAULT_VIEW: self
             }
             self.root = self
         else:

@@ -48,10 +48,10 @@ class AggregateSpandexAnnotator(SpandexAnnotator):
         agg_pipeline.add(sentence_annotator)
 
         # annotate sentences on the gold view
-        agg_pipeline.add(sentence_annotator, {spandex.SPANDEX_DEFAULT_VIEW: "gold"})
+        agg_pipeline.add(sentence_annotator, {spandex.constants.SPANDEX_DEFAULT_VIEW: "gold"})
 
         # annotate sentences on the test view
-        agg_pipeline.add(sentence_annotator, {spandex.SPANDEX_DEFAULT_VIEW: "test"})
+        agg_pipeline.add(sentence_annotator, {spandex.constants.SPANDEX_DEFAULT_VIEW: "test"})
 
         # run the pipeline on a spandex doc
         agg_pipeline(spndx)
@@ -94,7 +94,6 @@ class AggregateSpandexAnnotator(SpandexAnnotator):
             # Always pass the mapped default view into the annotator
             # This way functions/methods that just run on what is passed
             # can do so without having to call get_view themselves
-            mapped_view = mapped_spndx.get_view(spandex.SPANDEX_DEFAULT_VIEW)
-            print("VIEW", mapped_view, mapped_view.viewname)
+            mapped_view = mapped_spndx.get_view(spandex.constants.SPANDEX_DEFAULT_VIEW)
             annotator(mapped_view)
 
