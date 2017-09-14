@@ -85,23 +85,17 @@ class AggregateAnalysisFunction(AnalysisFunction):
         # for consumption by the annotator.
         for step, (annotator, view_map) in enumerate(zip(self.annotators, self.view_maps)):
 
-            print("agg: {:d}".format(step))
             if view_map:
-                print("mapping")
                 mapped_spndx = spandex.ViewMappedSpandex(spndx, view_map)
             else:
-                print("not mapping")
                 mapped_spndx = spndx
 
             # Always pass the mapped default view into the annotator
             # This way functions/methods that just run on what is passed
             # can do so without having to call get_view themselves
-            print("mp views", mapped_spndx.views)
-            print("*", annotator, view_map, mapped_spndx)
             try:
                 mapped_view = mapped_spndx.get_view(spandex.constants.SPANDEX_DEFAULT_VIEW)
             except KeyError:
                 mapped_view = mapped_spndx
-            print("!", mapped_view)
             annotator(mapped_view)
 

@@ -200,61 +200,12 @@ class Spandex(object):
         return self.annotations[layer][end:]
 
 
-
-class ViewMappedSpandex1(Spandex):
-
-    def __init__(self, wrapped_spandex, view_map):
-        """
-
-        Args:
-        wrapped_spandex (Spandex) - The original Spandex which we want to inject
-            a view mapping
-        view_map (dict) - A map between the names used by the 
-            analyzer function and the names specified by the pipeline
-        """
-        self.wrapped_spandex = wrapped_spandex
-        self.viewops = ViewMappedViewOps(view_map)
-
-    @property
-    def content(self):
-        return self.wrapped_spandex._content
-
-    @content.setter
-    def content(self, value):
-        self.wrapped_spandex._content = value
-
-
-    def __getattr__(self, attr):
-        print("ATTR", attr)
-
-        if attr in ["get_view", "create_view", "__getitem__", "content"]:
-            print("\t", attr, "mapped")
-            return self.__getattribute__(attr)
-        else: 
-            print("\t", attr, "orig")
-            return self.wrapped_spandex.__getattribute__(attr)
-
-    def __get_dict_attr__(self, attr):
-        print ("DICTATTR", attr)
-        return self.__dict__[attr]
-
-
-    def get_view(self, viewname):
-        view = self.viewops.get_view(self.wrapped_spandex, viewname)
-        return ViewMappedSpandex(view, self.viewops)
-
-    def __getitem__(self, viewname):
-        return self.get_view(viewname)
-
-    def create_view(self, viewname, content):
-        view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
-        return ViewMappedSpandex(view, self.viewops)
-
-
 class ViewMappedSpandex(object):
 
     def __init__(self, wrapped_spandex, view_map):
         """
+        Wraps a Spandex object so we can override its view names for use by
+        an analysis function
 
         Args:
         wrapped_spandex (Spandex) - The original Spandex which we want to inject
@@ -262,40 +213,37 @@ class ViewMappedSpandex(object):
         view_map (dict) - A map between the names used by the 
             analyzer function and the names specified by the pipeline
         """
-        self.wrapped_spandex = wrapped_spandex
+        self._wrapped_spandex = wrapped_spandex
         self.viewops = ViewMappedViewOps(view_map)
-
-        #self.__class__ = type(wrapped_spandex.__class__.__name__,
-        #                    (self.__class__, wrapped_spandex.__class__),
-        #                    {})
-
-        #self.__dict__ = wrapped_spandex.__dict__
 
     @property
     def content(self):
-        return self.wrapped_spandex._content
+        return self._wrapped_spandex._content
 
     @content.setter
     def content(self, value):
-        self.wrapped_spandex._content = value
+        self._wrapped_spandex._content = value
 
     def get_view(self, viewname):
-        view = self.viewops.get_view(self.wrapped_spandex, viewname)
+        view = self.viewops.get_view(self._wrapped_spandex, viewname)
         return ViewMappedSpandex(view, self.viewops)
 
     def __getitem__(self, viewname):
         return self.get_view(viewname)
 
     def create_view(self, viewname, content):
-        view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
+        view = self.viewops.create_view(self._wrapped_spandex, viewname, content)
         return ViewMappedSpandex(view, self.viewops)
 
     def __getattr__(self, attr):
+        # see if this object has attr
+        # NOTE do not use hasattr, it goes into
+        # infinite recurrsion
         if attr in self.__dict__:
-            print ("WRAPATTR", attr)
+            # this object has it
             return getattr(self, attr)
 
-        print ("ORIGATTR", attr)
-        return getattr(self.wrapped_spandex, attr)
+        # proxy to the wrapped object
+        return getattr(self._wrapped_spandex, attr)
 
 

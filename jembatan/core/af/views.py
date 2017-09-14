@@ -39,11 +39,6 @@ class ViewTextCopier(AnalysisFunction):
 
     def process(self, spndx):
 
-        print ("ViewTextCopier", spndx)
         srcview = spndx[self.src_viewname]
-        print ("\t src: {}".format(srcview))
         tgtview = spndx[self.tgt_viewname]
-        print ("\t tgt: {}".format(tgtview))
-        print ("tgtview.content: {}".format(tgtview.content))
         tgtview.content = srcview.content
-        print ("tgtview.content: {}".format(tgtview.content))
