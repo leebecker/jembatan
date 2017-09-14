@@ -1,6 +1,6 @@
 import jembatan.spandex as spandex
 
-class SpandexAnnotator(object):
+class AnalysisFunction(object):
     """
     Base annotator class for processing Spandex objects. This is provided as a convenience
     for object-oriented development of annotators.  By virtue of python duck-typing
@@ -21,10 +21,10 @@ class SpandexAnnotator(object):
         self.process(spndx)
 
 
-class AggregateSpandexAnnotator(SpandexAnnotator):
+class AggregateAnalysisFunction(AnalysisFunction):
     """ A 'simple' class for pipelining annotators which serially process a Spandex object.
 
-    Beyond simply passing the same Spandex between annotators, AggregateSpandexAnnotator
+    Beyond simply passing the same Spandex between annotators, AggregateAnalysisFunction
     has support for mapping of view names.  This allows annotators which operate in
     specific views to be reused on different views without need for re-instantiating or
     re-configuring the annotator.  A common use case is running tokenization on
@@ -42,7 +42,7 @@ class AggregateSpandexAnnotator(SpandexAnnotator):
         # load/initialize spandex
         spndx = ...
 
-        agg_pipeline = AggregateSpandexAnnotator()
+        agg_pipeline = AggregateAnalysisFunction()
 
         # annotate sentences on the default view
         agg_pipeline.add(sentence_annotator)
