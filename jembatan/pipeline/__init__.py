@@ -1,4 +1,4 @@
-import jembatan.spandex as spandex
+import jembatan.core.spandex as spandex
 
 class AnalysisFunction(object):
     """
