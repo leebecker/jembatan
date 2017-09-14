@@ -94,8 +94,8 @@ constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 class Spandex(object):
 
     def __init__(self, text, root=None, viewname=None):
-        self.content = text 
-        self.annotations = {}
+        self._content = text 
+        self._annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
         self.viewops = DefaultViewOps()
@@ -119,6 +119,22 @@ class Spandex(object):
     def is_root(self):
         return self.root == self
 
+    @property
+    def views(self):
+        return self.root._views
+
+    @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, value):
+        self._content = value
+
+    @property
+    def annotations(self):
+        return self._annotations
+
     def get_view(self, viewname):
         return self.viewops.get_view(self, viewname)
 
@@ -128,10 +144,6 @@ class Spandex(object):
     def create_view(self, viewname, content):
         return self.viewops.create_view(self, viewname, content)
     
-    @property
-    def views(self):
-        return self.root._views
-
 
     def compute_keys(self, layer_annotations):
         return [a[0][0] for a in layer_annotations]
@@ -189,7 +201,7 @@ class Spandex(object):
 
 
 
-class ViewMappedSpandex(Spandex):
+class ViewMappedSpandex1(Spandex):
 
     def __init__(self, wrapped_spandex, view_map):
         """
@@ -203,12 +215,29 @@ class ViewMappedSpandex(Spandex):
         self.wrapped_spandex = wrapped_spandex
         self.viewops = ViewMappedViewOps(view_map)
 
-    def __getattr__(self, attr):
+    @property
+    def content(self):
+        return self.wrapped_spandex._content
 
-        if attr in ["get_view", "create_view", "__getitem__"]:
+    @content.setter
+    def content(self, value):
+        self.wrapped_spandex._content = value
+
+
+    def __getattr__(self, attr):
+        print("ATTR", attr)
+
+        if attr in ["get_view", "create_view", "__getitem__", "content"]:
+            print("\t", attr, "mapped")
             return self.__getattribute__(attr)
         else: 
+            print("\t", attr, "orig")
             return self.wrapped_spandex.__getattribute__(attr)
+
+    def __get_dict_attr__(self, attr):
+        print ("DICTATTR", attr)
+        return self.__dict__[attr]
+
 
     def get_view(self, viewname):
         view = self.viewops.get_view(self.wrapped_spandex, viewname)
@@ -220,4 +249,53 @@ class ViewMappedSpandex(Spandex):
     def create_view(self, viewname, content):
         view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
         return ViewMappedSpandex(view, self.viewops)
+
+
+class ViewMappedSpandex(object):
+
+    def __init__(self, wrapped_spandex, view_map):
+        """
+
+        Args:
+        wrapped_spandex (Spandex) - The original Spandex which we want to inject
+            a view mapping
+        view_map (dict) - A map between the names used by the 
+            analyzer function and the names specified by the pipeline
+        """
+        self.wrapped_spandex = wrapped_spandex
+        self.viewops = ViewMappedViewOps(view_map)
+
+        #self.__class__ = type(wrapped_spandex.__class__.__name__,
+        #                    (self.__class__, wrapped_spandex.__class__),
+        #                    {})
+
+        #self.__dict__ = wrapped_spandex.__dict__
+
+    @property
+    def content(self):
+        return self.wrapped_spandex._content
+
+    @content.setter
+    def content(self, value):
+        self.wrapped_spandex._content = value
+
+    def get_view(self, viewname):
+        view = self.viewops.get_view(self.wrapped_spandex, viewname)
+        return ViewMappedSpandex(view, self.viewops)
+
+    def __getitem__(self, viewname):
+        return self.get_view(viewname)
+
+    def create_view(self, viewname, content):
+        view = self.viewops.create_view(self.wrapped_spandex, viewname, content)
+        return ViewMappedSpandex(view, self.viewops)
+
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            print ("WRAPATTR", attr)
+            return getattr(self, attr)
+
+        print ("ORIGATTR", attr)
+        return getattr(self.wrapped_spandex, attr)
+
 
