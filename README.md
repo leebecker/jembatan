@@ -3,7 +3,7 @@ Jembatan is the word for bridge in Bahasa Indonesia.  It is also a python based 
 for wrapping and linking the many disparate Natural Language Processing frameworks
 into common data structures, pipelines and type systems for analysis.  Jembatan borrows
 heavily from the `CAS` and `AnalysisEngine` concepts in [UIMA](https://uima.apache.org/),
-`Slab` and `AnalysisFunction` in [Chalk](https://uima.apache.org/) and [Epic](https://github.com/dlwh/epic) as well as the querying
+`Slab` and `AnalysisFunction` in [Chalk](https://uima.apache.org/) and [Epic](https://github.com/dlwh/epic) as well as the querying and pipeline conveniences found in [uimafit](https://github.com/apache/uima-uimafit) and [ClearTk](https://cleartk.github.io/cleartk/).
 
 
 ## License ##
