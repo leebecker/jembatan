@@ -275,7 +275,7 @@ class SpacyAnalyzer(AnalysisFunction):
     """
     
 
-    def __init__(self, spacy_pipeline=None, annotation_layers = AnnotationLayers.ALL(), window_type=None):
+    def __init__(self, spacy_pipeline=None, annotation_layers = AnnotationLayers.ALL()):
         """
 
         Args:
@@ -285,11 +285,6 @@ class SpacyAnalyzer(AnalysisFunction):
             annotation_layers: Bitwise mask of AnnotationLayers indicating
                 which layers to populate in Spandex.  Default value is 
                 AnnotationLayers.ALL()
-            window_type: Class Type of object to run processing over.  A common
-                use case would be to run on boundaries already defined prior
-                to processing.  For example if you wanted to process a document
-                by subsection boundaries  Default of None means to process the
-                full contents of the Spandex.
 
         Example:
             # only populate Document, Sentence and Token layers in Spandex
@@ -309,10 +304,22 @@ class SpacyAnalyzer(AnalysisFunction):
 
         self.document_layer=True,
         self.annotation_layers = annotation_layers
-        self.window_type = window_type
 
-    def process(self, spndx):
-        if not self.window_type:
+    def process(self, spndx, **kwargs):
+        """
+        Args: 
+            **kwargs: Arbitrary Keyword Arguments
+            
+            
+        Keyword Args:
+            window_layer (str or type): Class Type of object to run processing 
+                over.  A common use case would be to run on boundaries already 
+                defined prior to processing.  For example processing a document
+                by subsection boundaries  Default of None means to process the
+                full contents of the Spandex.
+        """
+        window_type = kwargs.get('window_type', None)
+        if not window_type:
             # process full document
             spacy_doc = self.spacy_pipeline(spndx.content)
             SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers)

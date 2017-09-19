@@ -8,28 +8,42 @@ class AnalysisFunction(object):
     __call__(self, spndx) will work as well.
     """
 
-    def process(self, spndx):
+    def process(self, spndx, **kwargs):
         """
-        Override this method to define Annotator behavior.  Typically this is used to add
-        annotation or data to the Spandex object.
+        Override this method to define Annotator behavior.  Typically this is used to add annotation or data to the Spandex object.
+
+        Args:
+            spndx(:obj:`Spandex`) - Spandex object to process
+            **kwargs - Arbitrary keyword arguments.  These are typically 
+                defined per AnalysisFunction.  Use these to inject behavior
+                changes that can not be accounted for during initialization
         """
         pass
 
 
-    def __call__(self, spndx):
-        """ Processes Spandex object """
-        self.process(spndx)
+    def __call__(self, spndx, **kwargs):
+        """ Processes Spandex object.  In most cases this should not be 
+        overridden.  Instead subclasses should override the `process` method.
+        
+        Args:
+            spndx(:obj:`Spandex`) - Spandex object to process
+            **kwargs - Arbitrary keyword arguments.  These are typically 
+                defined per AnalysisFunction.  Use these to inject behavior
+                changes that can not be accounted for during initialization
+       
+        """
+        self.process(spndx, **kwargs)
 
 
 class AggregateAnalysisFunction(AnalysisFunction):
     """ A 'simple' class for pipelining annotators which serially process a Spandex object.
 
-    Beyond simply passing the same Spandex between annotators, AggregateAnalysisFunction
-    has support for mapping of view names.  This allows annotators which operate in
-    specific views to be reused on different views without need for re-instantiating or
-    re-configuring the annotator.  A common use case is running tokenization on
+    Beyond simply passing the same Spandex between annotators, 
+    `AggregateAnalysisFunction` has support for mapping of view names.  
+    This allows annotators which operate in specific views to be reused on 
+    different views without need for re-instantiating or re-configuring 
+    the annotator.  A common use case is running tokenization on
     a Gold and Test view of the data.
-
 
     Usage:
 
@@ -64,26 +78,43 @@ class AggregateAnalysisFunction(AnalysisFunction):
         """
         self.annotators = []
         self.view_maps = []
+        self.af_kwargs_list = []
 
-    def add(self, annotator, view_map=None):
+    def add(self, annotator, view_map=None, **kwargs):
         """ Add annotator to pipeline
 
         Args:
-        annotator (:obj:) a function or an object with __call__ '()' implemented.  
-            An annotator accepts and processes a Spandex object
+            annotator (:obj:) a function or an object with
+                '__call__(spndx, **kwargs)' implemented.
+                An annotator accepts and processes a Spandex object
+                view_map (dict, optional): A dictionary mapping between the 
+                views used internally by the annotator and the views present in 
+                the spandex.  Defaults of None indicates not to do mapping.
 
-        view_map (dict, optional): A dictionary mapping between the views used internally
-            by the annotator and the views present in the spandex.  Defaults of None
-            indicates not to do mapping.
+            **kwargs: extra parameters to pass to annotator.process() to allow 
+                for change in runtime behavior separate from remapping of view 
+                names.  These are intended to allow for reuse of components 
+                without need to initialize a new object.
         """
         self.annotators.append(annotator)
         self.view_maps.append(view_map)
+        self.af_kwargs_list.append(kwargs)
 
 
-    def process(self, spndx):
+    def process(self, spndx, **kwargs):
+        """
+        Runs the aggregate analysis function (pipeline) defined through calls
+        to the `add` method.
+
+        Args:
+            spndx (:obj:`Spandex`): Spandex object to process
+
+            **kwargs: Arbitrary keyword arguments.  Not currently used
+        """
         # Under the hood this aggregate annotator will wrap the Spandex object up
         # for consumption by the annotator.
-        for step, (annotator, view_map) in enumerate(zip(self.annotators, self.view_maps)):
+        for step, (annotator, view_map, af_kwargs) in \
+                enumerate(zip(self.annotators, self.view_maps, self.af_kwargs_list)):
 
             if view_map:
                 mapped_spndx = spandex.ViewMappedSpandex(spndx, view_map)
@@ -97,5 +128,5 @@ class AggregateAnalysisFunction(AnalysisFunction):
                 mapped_view = mapped_spndx.get_view(spandex.constants.SPANDEX_DEFAULT_VIEW)
             except KeyError:
                 mapped_view = mapped_spndx
-            annotator(mapped_view)
+            annotator(mapped_view, **af_kwargs)
 

@@ -18,7 +18,7 @@ class ViewCreator(AnalysisFunction):
     def __init__(self, viewname):
         self.viewname = viewname
 
-    def process(self, spndx):
+    def process(self, spndx, **kwargs):
         self.create_view_safely(spndx, self.viewname)
 
     @classmethod
@@ -31,13 +31,13 @@ class ViewTextCopier(AnalysisFunction):
         "ViewTextCopierConstants", 
         ["DEFAULT_SOURCE_VIEW", "DEFAULT_TARGET_VIEW"])
 
-    constants = Constants("_DEFAULT_SOURCE_VIEW", "_DEFAULT_TARGET_VIEW")
+    constants = Constants("_viewTextCopierDefaultSourceView", "_viewTextCopierDefaultTargetView")
 
     def __init__(self, src_viewname=None, tgt_viewname=None):
         self.src_viewname = src_viewname if src_viewname else self.constants.DEFAULT_SOURCE_VIEW
         self.tgt_viewname = tgt_viewname if tgt_viewname else self.constants.DEFAULT_TARGET_VIEW
 
-    def process(self, spndx):
+    def process(self, spndx, **kwargs):
 
         srcview = spndx[self.src_viewname]
         tgtview = spndx[self.tgt_viewname]
