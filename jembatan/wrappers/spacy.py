@@ -275,22 +275,22 @@ class SpacyAnalyzer(AnalysisFunction):
     """
     
 
-    def __init__(self, spacy_pipeline=None, annotation_layers = AnnotationLayers.ALL()):
+    def __init__(self, spacy_pipeline=None):
         """
 
         Args:
             spacy_pipeline: a spacy model pipeline function which accepts text 
                 and returns a spacy document.  Default value of None will trigger
                 creation and initialization of the Spacy English model.
-            annotation_layers: Bitwise mask of AnnotationLayers indicating
-                which layers to populate in Spandex.  Default value is 
-                AnnotationLayers.ALL()
 
         Example:
+            # initialize pipeline
+            spacy_analyzer = SpacyAnalyzer(en_nlp)
+
             # only populate Document, Sentence and Token layers in Spandex
             layers = AnnotationLayers.DOCUMENT | AnnotationLayers.SENTENCE \
                     | AnnotationLayers.TOKEN
-            spacy_analyzer = SpacyAnalyzer(en_nlp, layers)
+            spacy_analyzer(spndx, annotation_layers=layers)
 
 
         """
@@ -302,8 +302,6 @@ class SpacyAnalyzer(AnalysisFunction):
             from spacy.en import English 
             self.spacy_pipeline = English()
 
-        self.document_layer=True,
-        self.annotation_layers = annotation_layers
 
     def process(self, spndx, **kwargs):
         """
@@ -312,20 +310,27 @@ class SpacyAnalyzer(AnalysisFunction):
             
             
         Keyword Args:
-            window_layer (str or type): Class Type of object to run processing 
+            annotation_layers (:obj:`AnnotationLayer`): Bitwise mask of AnnotationLayers 
+                indicating which layers to populate in Spandex.  Default value is 
+                AnnotationLayers.ALL()
+
+            window_type (str or type): Class Type of object to run processing 
                 over.  A common use case would be to run on boundaries already 
                 defined prior to processing.  For example processing a document
                 by subsection boundaries  Default of None means to process the
                 full contents of the Spandex.
         """
         window_type = kwargs.get('window_type', None)
+        annotation_layers = kwargs.get('annotation_layers', AnnotationLayers.ALL())
+
         if not window_type:
             # process full document
             spacy_doc = self.spacy_pipeline(spndx.content)
-            SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers)
+            SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers)
         else:
-            for window_span, window_obj in spndx.select(self.window_type):
+            for window_span, window_obj in spndx.select(window_type):
                 window_text = spndx.spanned(window_span)
                 spacy_doc = self.spacy_pipeline(window_text)
-                SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers, window_span)
+                SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, 
+                        annotation_layers, window_span)
 
