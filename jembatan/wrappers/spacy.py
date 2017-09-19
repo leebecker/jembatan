@@ -174,48 +174,77 @@ class SpacyToJson(object):
 class SpacyToSpandexUtils:
 
     @staticmethod
-    def convert_sentence(spacysent):
+    def convert_sentence(spacysent, window_span=None):
         begin = spacysent.start_char
         end = begin + len(spacysent.text)
-        return Span(begin, end), Sentence(other=None)
+
+        if window_span:
+            sent_span = Span(window_span.begin + begin, window_span.begin + end)
+        else:
+            sent_span = Span(begin, end)
+
+        return sent_span, Sentence(other=None)
 
     @staticmethod
-    def convert_token(spacytok):
+    def convert_token(spacytok, window_span=None):
         span = Span(spacytok.idx, spacytok.idx + len(spacytok))  
+        if window_span:
+            span = Span(window_span.begin + span.begin, window_span.begin + span.end)
         postag = PartOfSpeech(pos=spacytok.tag_, tag=spacytok.pos_)
         tok = Token(lemma=spacytok.lemma_, partOfSpeech=postag, headDependencyEdges=[], childDependencyEdges=[])
         return span, tok
 
     @staticmethod
-    def convert_entity(entity):
-        return Span(entity.start_char, entity.end_char), Entity(name=None, salience=None, type=entity.label_)
+    def convert_entity(entity, window_span=None):
+        if window_span:
+            entity_span = Span(window_span.begin + entity.start_char, 
+                               window_span.begin + entity.end_char)
+        else:
+            entity_span = Span(entity.start_char, 
+                               entity.end_char)
+
+
+        return entity_span, Entity(name=None, salience=None, type=entity.label_)
 
     @staticmethod
-    def convert_noun_chunk(noun_chunk):
-        return Span(noun_chunk.start_char, noun_chunk.end_char), NounChunk(type=noun_chunk.label_)
+    def convert_noun_chunk(noun_chunk, window_span=None):
+
+        if window_span:
+            noun_chunk_span = Span(window_span.begin + noun_chunk.start_char, 
+                               window_span.begin + noun_chunk.end_char)
+        else:
+            noun_chunk_span = Span(noun_chunk.start_char, 
+                               noun_chunk.end_char)
+
+        return noun_chunk_span, NounChunk(type=noun_chunk.label_)
 
     @staticmethod
-    def spacy_to_spandex(spacy_doc, spndx=None, annotation_layers=AnnotationLayers.ALL()):
+    def spacy_to_spandex(spacy_doc, spndx=None, annotation_layers=AnnotationLayers.ALL(), window_span=None):
 
         if not spndx:
             spndx = Spandex(spacy_doc.text_with_ws)
 
         if annotation_layers & AnnotationLayers.DOCUMENT:
-            spndx.add_layer(
+            if window_span:
+                doc_span = window_span
+            else:
+                doc_span = Span(0, len(spndx.content))
+
+            spndx.append(
                 Document, 
-                [(Span(0, len(spndx.content)), Document(other={'sentiment': spacy_doc.sentiment}))])
+                *[(doc_span, Document(other={'sentiment': spacy_doc.sentiment}))])
 
         if annotation_layers & AnnotationLayers.SENTENCE:
-            spndx.add_layer(
+            spndx.append(
                 Sentence, 
-                [SpacyToSpandexUtils.convert_sentence(s) for s in spacy_doc.sents])
+                *[SpacyToSpandexUtils.convert_sentence(s, window_span) for s in spacy_doc.sents])
 
         # Extract tokens and dependency parse
         spacy_toks = [t for t in spacy_doc]
         if annotation_layers & AnnotationLayers.TOKEN:
-            all_toks = [SpacyToSpandexUtils.convert_token(t) for t in spacy_toks]
+            all_toks = [SpacyToSpandexUtils.convert_token(t, window_span) for t in spacy_toks]
             toks = [tok for (tok, spacy_tok) in zip(all_toks, spacy_toks) if not spacy_tok.is_space]
-            spndx.add_layer(Token, toks)
+            spndx.append(Token, *toks)
 
             if annotation_layers & AnnotationLayers.DEPPARSE:
                 spndx.add_layer_alias("dependency_nodes", Token)
@@ -229,13 +258,13 @@ class SpacyToSpandexUtils:
                         tok.headDependencyEdges.append(depedge)
                         headtok.childDependencyEdges.append(depedge)
                         depedges.append((depspan, depedge))
-                spndx.add_layer(DependencyEdge, depedges)
+                spndx.append(DependencyEdge, *depedges)
 
         if annotation_layers & AnnotationLayers.ENTITY:
-            spndx.add_layer(Entity, [SpacyToSpandexUtils.convert_entity(e) for e in spacy_doc.ents])
+            spndx.append(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
 
         if annotation_layers & AnnotationLayers.NOUN_CHUNK:
-            spndx.add_layer(NounChunk, [SpacyToSpandexUtils.convert_noun_chunk(n) for n in spacy_doc.noun_chunks])
+            spndx.append(NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
 
 
 
@@ -246,7 +275,7 @@ class SpacyAnalyzer(AnalysisFunction):
     """
     
 
-    def __init__(self, spacy_pipeline=None, annotation_layers = AnnotationLayers.ALL()):
+    def __init__(self, spacy_pipeline=None, annotation_layers = AnnotationLayers.ALL(), window_type=None):
         """
 
         Args:
@@ -256,6 +285,11 @@ class SpacyAnalyzer(AnalysisFunction):
             annotation_layers: Bitwise mask of AnnotationLayers indicating
                 which layers to populate in Spandex.  Default value is 
                 AnnotationLayers.ALL()
+            window_type: Class Type of object to run processing over.  A common
+                use case would be to run on boundaries already defined prior
+                to processing.  For example if you wanted to process a document
+                by subsection boundaries  Default of None means to process the
+                full contents of the Spandex.
 
         Example:
             # only populate Document, Sentence and Token layers in Spandex
@@ -275,7 +309,16 @@ class SpacyAnalyzer(AnalysisFunction):
 
         self.document_layer=True,
         self.annotation_layers = annotation_layers
+        self.window_type = window_type
 
     def process(self, spndx):
-        spacy_doc = self.spacy_pipeline(spndx.content)
-        SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers)
+        if not self.window_type:
+            # process full document
+            spacy_doc = self.spacy_pipeline(spndx.content)
+            SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers)
+        else:
+            for window_span, window_obj in spndx.select(self.window_type):
+                window_text = spndx.spanned(window_span)
+                spacy_doc = self.spacy_pipeline(window_text)
+                SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, self.annotation_layers, window_span)
+
