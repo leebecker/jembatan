@@ -155,7 +155,7 @@ class Spandex(object):
 
     def append(self, layer, *span_obj_pairs):
         layer = self.aliases.get(layer, layer)
-        items = sorted(self.annotations[layer] + span_obj_pairs)
+        items = sorted(self._annotations.get(layer, []) + list(span_obj_pairs))
         keys = self.compute_keys(items)
         self.annotations[layer] = items
         self.annotation_keys[layer] = keys
@@ -246,4 +246,4 @@ class ViewMappedSpandex(object):
         # proxy to the wrapped object
         return getattr(self._wrapped_spandex, attr)
 
-
+__all__= ['errors']
