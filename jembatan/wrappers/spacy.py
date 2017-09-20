@@ -183,7 +183,9 @@ class SpacyToSpandexUtils:
         else:
             sent_span = Span(begin, end)
 
-        return sent_span, Sentence(other=None)
+        sent_obj = Sentence()
+        sent_obj.source = spacysent
+        return sent_span, sent_obj
 
     @staticmethod
     def convert_token(spacytok, window_span=None):
@@ -192,6 +194,7 @@ class SpacyToSpandexUtils:
             span = Span(window_span.begin + span.begin, window_span.begin + span.end)
         postag = PartOfSpeech(pos=spacytok.tag_, tag=spacytok.pos_)
         tok = Token(lemma=spacytok.lemma_, partOfSpeech=postag, headDependencyEdges=[], childDependencyEdges=[])
+        tok.source = spacytok
         return span, tok
 
     @staticmethod
@@ -203,8 +206,9 @@ class SpacyToSpandexUtils:
             entity_span = Span(entity.start_char, 
                                entity.end_char)
 
-
-        return entity_span, Entity(name=None, salience=None, type=entity.label_)
+        entity_obj = Entity(name=None, salience=None, type=entity.label_)
+        entity_obj.source = entity
+        return entity_span, entity_obj
 
     @staticmethod
     def convert_noun_chunk(noun_chunk, window_span=None):
@@ -215,8 +219,8 @@ class SpacyToSpandexUtils:
         else:
             noun_chunk_span = Span(noun_chunk.start_char, 
                                noun_chunk.end_char)
-
-        return noun_chunk_span, NounChunk(type=noun_chunk.label_)
+        noun_chunk_obj = NounChunk(type=noun_chunk.label_)
+        return noun_chunk_span, noun_chunk_obj
 
     @staticmethod
     def spacy_to_spandex(spacy_doc, spndx=None, annotation_layers=AnnotationLayers.ALL(), window_span=None):
@@ -232,7 +236,7 @@ class SpacyToSpandexUtils:
 
             spndx.append(
                 Document, 
-                *[(doc_span, Document(other={'sentiment': spacy_doc.sentiment}))])
+                *[(doc_span, Document())])
 
         if annotation_layers & AnnotationLayers.SENTENCE:
             spndx.append(
