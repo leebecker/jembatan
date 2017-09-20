@@ -5,13 +5,11 @@ into common data structures, pipelines and type systems for analysis.  Jembatan 
 heavily from the `CAS` and `AnalysisEngine` concepts in [UIMA](https://uima.apache.org/),
 `Slab` and `AnalysisFunction` in [Chalk](https://uima.apache.org/) and [Epic](https://github.com/dlwh/epic) as well as the querying and pipeline conveniences found in [uimafit](https://github.com/apache/uima-uimafit) and [ClearTk](https://cleartk.github.io/cleartk/).
 
-
 ## License ##
 Jembatan is distributed under [Apache License, version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 ## Goals ##
-Jembatan aims to make analyses of documents accessible through a data structure known as
-a `Spandex`.  This is essentially a piece of text that contains `Spans`
+Jembatan aims to make analyses of documents accessible through a data structure known as a `Spandex`.  This is essentially a piece of text that contains `Spans`
 
 ## Hello Jembatan ##
 
@@ -73,3 +71,140 @@ Sentence 1: When one burns one's bridges, what a very nice fire it makes
 	 12	it	PRP
 	 13	makes	VBZ
 ```
+
+## Tutorial
+
+### Spandex
+The Spandex is the central data structure through which all analyses in
+Jembatan pass.  The Spandex houses layers of annotations over 
+different views of a document/resource.  Typically Jembatan pipelines 
+are formed by passing the same Spandex objects to multiple analyzers.
+
+To get a better idea of its capabilities let's play with the Spandex
+APIs.
+
+```
+from jembatan.core.spandex import (Span, Spandex)
+
+# Create Spandex initialized with text
+spndx = Spandex("Up until this point we resisted the urge to make a reference to lycra and hot pants.")
+```
+
+### Analysis Functions
+
+In line with Python's duck typing, an Analysis Function is any object or function that implements `__call__(spndx, **kwargs)`.  Analysis
+Functions are permitted lots of room.  Some may simply query the 
+Spandex for information, more commonly they will annotate one or 
+more views of the text and write out information for other use.
+
+#### Function-based
+For the purposes of illustration, let's create functions that
+annotates the text with mentions of lycra or hot pants.
+
+```
+import re
+from collections import namedtuple
+
+Lycra = namedtuple(idx)
+def lycra_analyzer(spndx, **kwargs):
+    lycra_re = re.compile("(lycra)". re.IGNORECASE)
+
+    # Find matches for regex above
+    mentions = []
+    for i, m in enumerate(lycra_re.finditer(spndx.content)):
+        span = Span(*m.span())
+        mention = Lycra(i)
+        mentions.append((span, mention))
+
+    # Add layer of annotation to the Spandex
+    spndx.add_layer(Lycra, mentions)
+
+# run the Lycra analyzer
+lycra_analyzer(spndx)
+```
+
+#### Class-based
+For convenience a base Analysis Function can be found at
+`jembatan.core.af.AnalysisFunction`.  To define your own,
+simply inherit from it, and override the `process` method.
+
+```
+from jembatan.core.af import AnalysisFunction
+
+HotPants = namedtuple(idx)
+class HotPantsAnalyzer(AnalysisFunction):
+
+    def process(self, spndx, **kwargs):
+        hotpants_re = re.compile("(hot pants|hotpants)". re.IGNORECASE)
+
+        # Find matches for regex above
+        mentions = []
+        for i, m in enumerate(hotpants_re.finditer(spndx.content)):
+            span = Span(*m.span())
+            mention = HotPants(i)
+            mentions.append((span, mention))
+
+        # Add layer of annotation to the Spandex
+        spndx.add_layer(Hotpants, mentions)
+
+# initialize and run hot pants analyzer
+hot_pants_analyzer = HotPantsAnalyzer()
+hot_pants_analyzer(spndx)
+```
+
+
+#### What about the Keyword Arguments? 
+
+The examples above ignore the `**kwargs` parameter.  These keyword
+arguments are included in Analysis Function signatures to provide
+a means for altering behavior at runtime.  This enables reuse of components for similar but slightly different behaviors.
+
+A classic use case is specifying a window type / governing annotation
+type for a sentence segmenter.  For example, we may have a document is organized under blocks for titles, abstract and sections.  If we only
+want to run the segmenter on abstract and sections, we could write
+the sentence segmenter analysis function to accept window type `Abstract` or `Section`.   Now instead of constructing separate segmenters
+we can reuse them by specifying different window types.
+
+
+### Back to Spandex Operations
+
+Assuming we've run our Spandex with the analyzers above, we can now
+query the structure in several ways.
+
+#### Select
+The simplest operation returns all instances of a particular
+annotation type from the Spandex along with their spans.
+
+
+```
+lycra_spans = spndx.select(Lycra)
+hotpant_spans = spndx.select(HotPants)
+```
+
+### Covered / Preceeding / Following
+Covered selects all of a type within a span. 
+```
+covered_tokens = spndx.covered(jemtypes.Token, Span(0,20))
+```
+
+Preceeding selects all of a type before a span.
+```
+preceding_tokens = spndx.preceeding(jemtypes.Token, Span(0,20))
+```
+
+Following selects all of a type before a span.
+```
+preceding_tokens = spndx.preceeding(jemtypes.Token, Span(0,20))
+```
+
+### Spanned
+Spanned will return the text contained in a span.
+```
+spndx.spanned(Span(0,20))
+```
+
+
+### View Mapping
+
+### Example
+
