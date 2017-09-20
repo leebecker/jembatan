@@ -13,10 +13,9 @@ Jembatan is distributed under [Apache License, version 2.0](http://www.apache.or
 Jembatan aims to make analyses of documents accessible through a data structure known as
 a `Spandex`.  This is essentially a piece of text that contains `Spans`
 
-## Examples ##
+## Hello Jembatan ##
 
-
-Run SpacyNLP's engine on a block of text and display some analyses:
+This example shows how to quickly run Jembatan's SpacyNLP wrapper on a block of text and display some analyses:
 
 ```python
 import spacy
@@ -24,7 +23,7 @@ import spacy
 from spacy.en import English
 from jembatan.core.spandex import (Span, Spandex)
 from jembatan.wrappers.spacy import SpacyAnalyzer
-from jembatan import typesys
+from jembatan import typesys as jemtypes
 
 
 # initialize Spandex with document text
@@ -38,7 +37,7 @@ spacy_analyzer(spndx)
 
 # Query and print annotations
 
-for i, (sentspan, sentobj) in enumerate(spndx.select(typesys.Sentence)):
+for i, (sentspan, sentobj) in enumerate(spndx.select(jemtypes.Sentence)):
     print("Sentence {:d}: {}".format(i, spndx.spanned(sentspan)))
     for j, (tokspan, tokobj) in enumerate(spndx.covered(typesys.Token, sentspan)):
         toktext = spndx.spanned(tokspan)
