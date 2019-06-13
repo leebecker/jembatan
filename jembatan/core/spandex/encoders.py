@@ -1,5 +1,8 @@
+from collections import defaultdict
+from collections.abc import Sequence
 from jembatan.core import spandex
 
+import importlib
 import jembatan.typesys as jemtypes
 import json
 import numbers
@@ -12,11 +15,11 @@ class SpandexJsonEncoder(json.JSONEncoder):
 
         if isinstance(obj, spandex.Spandex):
 
-            spandex_obj = {}
+            spandex_obj = {"_type": "spandex", 'views': []}
 
             for viewname, view in obj.views.items():
                 layers = []
-                view_obj = {"name": viewname, "layers": layers, "content": view.content}
+                view_obj = {"name": viewname, "layers": layers, "content": view.content, "_type": "spandex_view"}
                 for layer_class, annotation_pairs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
                     annotations = [
@@ -27,23 +30,31 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     ]
                     layer_obj = {
                         'name': layer_name,
-                        'annotations': annotations
+                        'annotations': annotations,
+                        '_type': 'spandex_layer'
                     }
                     layers.append(layer_obj)
-                spandex_obj[viewname] = view_obj
+                spandex_obj['views'].append(view_obj)
             return spandex_obj
 
         elif isinstance(obj, spandex.Span):
             return [obj.begin, obj.end]
+        elif isinstance(obj, Sequence) and not isinstance(obj, str):
+            # handle non-string sequences (like lists or iterators)
+            return [self.default(i) for i in obj]
         elif isinstance(obj, jemtypes.Annotation):
-            return {f: self.default(getattr(obj, f)) for f in obj.__dataclass_fields__}
+            annotation_obj = {f: self.default(getattr(obj, f)) for f in obj.__dataclass_fields__}
+            annotation_obj['_type'] = "spandex_annotation"
+            annotation_obj['_annotation_type'] = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+            return annotation_obj
         elif isinstance(obj, jemtypes.AnnotationRef):
             return {
                 "span": self.default(obj.span),
                 "ref": {
-                    "annotation_type": f"{obj.ref.__class__.__module__}.{obj.ref.__class__.__name__}",
                     "id": self.default(obj.ref.id if obj.ref else None)
-                }
+                },
+                "_type": "annotation_ref",
+                "_annotation_type": f"{obj.ref.__class__.__module__}.{obj.ref.__class__.__name__}",
             }
         elif isinstance(obj, uuid.UUID):
             return str(obj)
@@ -55,6 +66,92 @@ class SpandexJsonEncoder(json.JSONEncoder):
 
 
 class SpandexJsonDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+        # FIXME not multithreaded in any way
+        self.layer_registry = {}
+
 
     def object_hook(self, obj):
-        pass
+        if isinstance(obj, (str, int, float, bool)):
+            # don't transform basic types
+            return obj
+        elif isinstance(obj, Sequence):
+            return [self.object_hook(i) for i in obj]
+        elif '_type' not in obj:
+            # if it's a dictionary without a '_type', return as is
+            return obj
+
+        obj_type = obj['_type']
+        if obj_type == 'spandex':
+            spndx = spandex.Spandex(text='')
+            for view_obj in obj['views']:
+                viewname = view_obj['name']
+                if viewname == spandex.constants.SPANDEX_DEFAULT_VIEW:
+                    spndx.content = view_obj['content']
+                else:
+                    spndx.create_view(viewname, view_obj['content'])
+
+                self.layer_registry = defaultdict(dict)
+                for layer in view_obj['layers']:
+                    layer_name = layer['name']
+                    module_name, class_name = layer_name.rsplit('.', 1)
+                    module = importlib.import_module(module_name)
+                    for span_annotation_obj in layer['annotations']:
+                        annotation_obj = span_annotation_obj['annotation']
+                        annotation = self.object_hook(annotation_obj)
+                        span_obj = span_annotation_obj['span']
+                        annotation_type = getattr(module, class_name)
+                        span = spandex.Span(int(span_obj[0]), int(span_obj[1]))
+                        #annotation_id = uuid.UUID(annotation_obj['id'])
+                        #annotation = annotation_type(id=annotation_id)
+                        self.layer_registry[layer_name][annotation.id] = (span, annotation)
+
+                        # now add fields
+
+                        for k, v in annotation_obj.items():
+                            if k.startswith('_') or k == 'id':
+                                continue
+
+                    spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
+
+            # reset layer registry
+            self.layer_registry = {}
+            return spndx
+
+        elif obj_type == 'spandex_annotation':
+            layer_name = obj['_annotation_type']
+            module_name, class_name = layer_name.rsplit('.', 1)
+            module = importlib.import_module(module_name)
+            annotation_type = getattr(module, class_name)
+            annotation_id = uuid.UUID(obj['id'])
+            if annotation_id in self.layer_registry[layer_name]:
+                # we've previously encountered the annotation from a reference
+                span, annotation = self.layer_registry[layer_name][annotation_id]
+            else:
+                annotation = annotation_type(id=annotation_id)
+
+            # now fill out fields
+            for fieldname, field in annotation_type.__dataclass_fields__.items():
+                if fieldname == "id":
+                    continue
+                setattr(annotation, fieldname, self.object_hook(obj[fieldname]))
+            return annotation
+
+        elif obj_type == 'annotation_ref':
+            layer_name = obj['_annotation_type']
+            ref_id = uuid.UUID(obj['ref']['id'])
+            if ref_id in self.layer_registry[layer_name]:
+                span, annotation = self.layer_registry[layer_name][ref_id]
+            else:
+                module_name, class_name = layer_name.rsplit('.', 1)
+                module = importlib.import_module(module_name)
+                annotation_type = getattr(module, class_name)
+                span = spandex.Span(*obj['span'])
+                annotation = annotation_type(id=ref_id)
+                self.layer_registry[layer_name][ref_id] = (span, annotation)
+            annotation_ref = jemtypes.AnnotationRef(span=span, ref=annotation)
+            return annotation_ref
+
+
+
