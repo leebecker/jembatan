@@ -62,7 +62,9 @@ class SpandexJsonEncoder(json.JSONEncoder):
             return obj
         elif isinstance(obj, numbers.Number):
             return float(obj)
-        return json.JSONEncoder.encode(self, obj)
+        elif obj is None:
+            return obj
+        return json.JSONEncoder.default(self, obj)
 
 
 class SpandexJsonDecoder(json.JSONDecoder):
@@ -71,12 +73,12 @@ class SpandexJsonDecoder(json.JSONDecoder):
         # FIXME not multithreaded in any way
         self.layer_registry = {}
 
-
     def object_hook(self, obj):
-        if isinstance(obj, (str, int, float, bool)):
-            # don't transform basic types
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            # simply return basic types
             return obj
         elif isinstance(obj, Sequence):
+            # turn non-string Sequences into lists.
             return [self.object_hook(i) for i in obj]
         elif '_type' not in obj:
             # if it's a dictionary without a '_type', return as is
@@ -84,16 +86,23 @@ class SpandexJsonDecoder(json.JSONDecoder):
 
         obj_type = obj['_type']
         if obj_type == 'spandex':
-            spndx = spandex.Spandex(text='')
+            spndx = spandex.Spandex(text='')  # create empty spandex structure for now
+
             for view_obj in obj['views']:
                 viewname = view_obj['name']
                 if viewname == spandex.constants.SPANDEX_DEFAULT_VIEW:
+                    # default view is the root spandex, so no need to create
+                    # just set the content
                     spndx.content = view_obj['content']
                 else:
+                    # for other views create and set content
                     spndx.create_view(viewname, view_obj['content'])
 
+                # reset layer registry - this is used for lookup by ID when resolving references
+                # in the JSON structure
                 self.layer_registry = defaultdict(dict)
                 for layer in view_obj['layers']:
+                    # add annotations layer by layer
                     layer_name = layer['name']
                     module_name, class_name = layer_name.rsplit('.', 1)
                     module = importlib.import_module(module_name)
@@ -103,15 +112,7 @@ class SpandexJsonDecoder(json.JSONDecoder):
                         span_obj = span_annotation_obj['span']
                         annotation_type = getattr(module, class_name)
                         span = spandex.Span(int(span_obj[0]), int(span_obj[1]))
-                        #annotation_id = uuid.UUID(annotation_obj['id'])
-                        #annotation = annotation_type(id=annotation_id)
                         self.layer_registry[layer_name][annotation.id] = (span, annotation)
-
-                        # now add fields
-
-                        for k, v in annotation_obj.items():
-                            if k.startswith('_') or k == 'id':
-                                continue
 
                     spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
 
