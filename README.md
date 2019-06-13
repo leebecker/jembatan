@@ -29,7 +29,7 @@ spndx = Spandex("""Education is all a matter of building bridges.
     When one burns one's bridges, what a very nice fire it makes""")
 
 # initialize and run Spacy on Spandex
-en_nlp = English()
+en_nlp = spacy.load("en_core_web_sm")
 spacy_analyzer = SpacyAnalyzer(en_nlp)
 spacy_analyzer(spndx)
 
