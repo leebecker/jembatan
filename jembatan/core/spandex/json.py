@@ -87,7 +87,6 @@ class SpandexJsonDecoder(json.JSONDecoder):
         obj = json.loads(s)
         return self.object_hook(obj)
 
-
     def object_hook(self, obj):
         if isinstance(obj, (str, int, float, bool)) or obj is None:
             # simply return basic types
