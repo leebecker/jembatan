@@ -19,7 +19,13 @@ class SpandexJsonEncoder(json.JSONEncoder):
 
             for viewname, view in obj.views.items():
                 layers = []
-                view_obj = {"name": viewname, "layers": layers, "content": view.content, "_type": "spandex_view"}
+                view_obj = {
+                    "name": viewname,
+                    "layers": layers,
+                    "content_string": view.content_string,
+                    "content_mime": view.content_mime,
+                    "_type": "spandex_view"
+                }
                 for layer_class, annotation_pairs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
                     annotations = [
@@ -70,8 +76,17 @@ class SpandexJsonEncoder(json.JSONEncoder):
 class SpandexJsonDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+        self.reset_layers()
+
+    def reset_layers(self):
         # FIXME not multithreaded in any way
-        self.layer_registry = {}
+        self.layer_registry = defaultdict(dict)
+
+    def decode(self, s):
+        # If this is not overridden it does weird things where it attempts to serialize things piecemeal
+        obj = json.loads(s)
+        return self.object_hook(obj)
+
 
     def object_hook(self, obj):
         if isinstance(obj, (str, int, float, bool)) or obj is None:
@@ -86,21 +101,24 @@ class SpandexJsonDecoder(json.JSONDecoder):
 
         obj_type = obj['_type']
         if obj_type == 'spandex':
-            spndx = spandex.Spandex(text='')  # create empty spandex structure for now
+            spndx = spandex.Spandex()  # create empty spandex structure for now
 
             for view_obj in obj['views']:
                 viewname = view_obj['name']
                 if viewname == spandex.constants.SPANDEX_DEFAULT_VIEW:
                     # default view is the root spandex, so no need to create
                     # just set the content
-                    spndx.content = view_obj['content']
+                    spndx.content_string = view_obj['content_string']
+                    spndx.content_mime = view_obj['content_mime']
                 else:
                     # for other views create and set content
-                    spndx.create_view(viewname, view_obj['content'])
+                    spndx.create_view(viewname=viewname,
+                                      content_string=view_obj['content_string'],
+                                      content_mime=view_obj['content_mime'])
 
                 # reset layer registry - this is used for lookup by ID when resolving references
                 # in the JSON structure
-                self.layer_registry = defaultdict(dict)
+                self.reset_layers()
                 for layer in view_obj['layers']:
                     # add annotations layer by layer
                     layer_name = layer['name']
@@ -117,7 +135,7 @@ class SpandexJsonDecoder(json.JSONDecoder):
                     spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
 
             # reset layer registry
-            self.layer_registry = {}
+            self.reset_layers()
             return spndx
 
         elif obj_type == 'spandex_annotation':

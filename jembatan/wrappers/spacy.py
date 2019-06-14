@@ -232,7 +232,7 @@ class SpacyToSpandexUtils:
             if window_span:
                 doc_span = window_span
             else:
-                doc_span = Span(0, len(spndx.content))
+                doc_span = Span(0, len(spndx.content_string))
 
             spndx.append(
                 Document,
@@ -337,7 +337,7 @@ class SpacyAnalyzer(AnalysisFunction):
 
         if not window_type:
             # process full document
-            spacy_doc = self.spacy_pipeline(spndx.content)
+            spacy_doc = self.spacy_pipeline(spndx.content_string)
             SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers)
         else:
             # process over windows

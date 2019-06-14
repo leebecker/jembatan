@@ -70,7 +70,7 @@ class DefaultViewOps(object):
     def __init__(self):
         pass
 
-    def get_view(self, spndx, viewname):
+    def get_view(self, spndx, viewname: str):
 
         root = spndx.root
 
@@ -83,10 +83,10 @@ class DefaultViewOps(object):
 
         return view
 
-    def create_view(self, spndx, viewname, content):
+    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
         root = spndx if not spndx.root else spndx.root
 
-        new_view_spndx = Spandex(content, root, viewname)
+        new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, root=root, viewname=viewname)
         if viewname in root.views:
             raise KeyError("View {} already exists in Spandex{}".format(viewname, root))
         root.views[viewname] = new_view_spndx
@@ -104,20 +104,17 @@ class ViewMappedViewOps(DefaultViewOps):
         mapped_viewname = self.view_map[viewname]
         return super(ViewMappedViewOps, self).get_view(spndx, mapped_viewname)
 
-    def create_view(self, spndx, viewname, content):
+    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
         mapped_viewname = self.view_map[viewname]
-        return super(ViewMappedViewOps, self).create_view(spndx, mapped_viewname, content)
+        return super(ViewMappedViewOps, self).create_view(spndx,
+                                                          viewname=mapped_viewname,
+                                                          content_string=content_string,
+                                                          content_mime=content_mime)
 
 
-SpandexConstants = namedtuple(
-        "SpandexContstants",
-        ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW", "T_SPAN"])
+SpandexConstants = namedtuple("SpandexContstants", ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
 
-
-constants = SpandexConstants(
-        "_SpandexDefaultView",
-        "_SpandexUriView",
-        Union[Span, Tuple[int, int]])
+constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 
 
 # object is mutable for performant reasons
@@ -127,8 +124,9 @@ class Spandex(object):
     Spandex - data structure for holding views of data, its content, and annotations
     """
 
-    def __init__(self, text, root=None, viewname=None):
-        self._content = text
+    def __init__(self, content_string: str=None, content_mime: str = None, root=None, viewname=None):
+        self._content_string = content_string
+        self._content_mime = content_mime
         self._annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
@@ -157,12 +155,20 @@ class Spandex(object):
         return self.root._views
 
     @property
-    def content(self):
-        return self._content
+    def content_string(self):
+        return self._content_string
 
-    @content.setter
-    def content(self, value):
-        self._content = value
+    @content_string.setter
+    def content_string(self, value):
+        self._content_string = value
+
+    @property
+    def content_mime(self):
+        return self._content_mime
+
+    @content_mime.setter
+    def content_mime(self, value):
+        self._content_mime = value
 
     @property
     def annotations(self):
@@ -174,13 +180,13 @@ class Spandex(object):
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
-    def create_view(self, viewname, content):
-        return self.viewops.create_view(self, viewname, content)
+    def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
+        return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
-    def compute_keys(self, layer_annotations):
+    def compute_keys(self, layer_annotations: Iterable[Tuple[Span, Annotation]]):
         return [a[0][0] for a in layer_annotations]
 
-    def spanned(self, span: constants.T_SPAN):
+    def spanned(self, span: Span):
         """
         Return text covered by the span
         """
@@ -254,21 +260,24 @@ class ViewMappedSpandex(object):
 
     @property
     def content(self):
-        return self._wrapped_spandex._content
+        return self._wrapped_spandex._content_string
 
     @content.setter
     def content(self, value):
-        self._wrapped_spandex._content = value
+        self._wrapped_spandex._content_string = value
 
     def get_view(self, viewname):
         view = self.viewops.get_view(self._wrapped_spandex, viewname)
         return ViewMappedSpandex(view, self.viewops)
 
-    def __getitem__(self, viewname):
+    def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
-    def create_view(self, viewname, content):
-        view = self.viewops.create_view(self._wrapped_spandex, viewname, content)
+    def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
+        view = self.viewops.create_view(self._wrapped_spandex,
+                                        viewname,
+                                        content_string=content_string,
+                                        content_mime=content_mime)
         return ViewMappedSpandex(view, self.viewops)
 
     def __getattr__(self, attr):
