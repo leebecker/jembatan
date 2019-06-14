@@ -153,6 +153,3 @@ class SpandexJsonDecoder(json.JSONDecoder):
                 self.layer_registry[layer_name][ref_id] = (span, annotation)
             annotation_ref = jemtypes.AnnotationRef(span=span, ref=annotation)
             return annotation_ref
-
-
-
