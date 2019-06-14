@@ -1,5 +1,6 @@
 from collections import namedtuple
 from functools import total_ordering
+from typing import ClassVar, Iterable, Union, Tuple
 
 import bisect
 
@@ -8,7 +9,13 @@ import bisect
 class Span(namedtuple("Span", ['begin', 'end'])):
     """
     A class defining offsets and spans over textual content.  The ordering of these
-    allows for convenient query within a Spandex
+    allows for convenient query within a Spandex, it has two named fields
+    `begin` and `end`.
+
+    Examples:
+        # construction
+        span1 = Span(begin=0, end=10)
+        span2 = Span(5, 10)
     """
 
     @property
@@ -23,7 +30,7 @@ class Span(namedtuple("Span", ['begin', 'end'])):
     def length(self):
         return self.end - self.begin
 
-    def contains(self, pos):
+    def contains(self, pos: int):
         return pos >= self.begin and pos < self.end
 
     def crosses(self, other):
@@ -102,12 +109,20 @@ class ViewMappedViewOps(DefaultViewOps):
         return super(ViewMappedViewOps, self).create_view(spndx, mapped_viewname, content)
 
 
-SpandexConstants = namedtuple("SpandexContstants", ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
-constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
+SpandexConstants = namedtuple(
+        "SpandexContstants",
+        ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW", "T_SPAN"])
+
+
+constants = SpandexConstants(
+        "_SpandexDefaultView",
+        "_SpandexUriView",
+        Union[Span, Tuple[int, int]])
 
 
 # object is mutable for performant reasons
 class Spandex(object):
+    from jembatan.typesys import Annotation
     """
     Spandex - data structure for holding views of data, its content, and annotations
     """
@@ -153,10 +168,10 @@ class Spandex(object):
     def annotations(self):
         return self._annotations
 
-    def get_view(self, viewname):
+    def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
-    def __getitem__(self, viewname):
+    def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
     def create_view(self, viewname, content):
@@ -165,50 +180,57 @@ class Spandex(object):
     def compute_keys(self, layer_annotations):
         return [a[0][0] for a in layer_annotations]
 
-    def spanned(self, span):
+    def spanned(self, span: constants.T_SPAN):
+        """
+        Return text covered by the span
+        """
         return self.content[span.begin:span.end]
 
-    def append(self, layer, *span_obj_pairs):
+    def append(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
         layer = self.aliases.get(layer, layer)
         items = sorted(self._annotations.get(layer, []) + list(span_obj_pairs))
         keys = self.compute_keys(items)
         self.annotations[layer] = items
         self.annotation_keys[layer] = keys
 
-    def has_layer(self, layer):
-        layer = self.aliases.get(layer, layer)
-        self.aliases[alias] = layer
-        return layer in self.annotations
-
-    def add_layer_alias(self, alias, layer):
-        self.aliases[alias] = layer
-
-    def add_layer(self, layer, span_obj_pairs):
+    def add_layer(self, layer: ClassVar[Annotation], span_obj_pairs: Iterable[Tuple[Span, Annotation]]):
         layer = self.aliases.get(layer, layer)
         items = sorted(span_obj_pairs)
         self.annotations[layer] = items
         self.annotation_keys[layer] = self.compute_keys(items)
 
-    def remove_layer(self, layer):
+    def remove_layer(self, layer: ClassVar[Annotation]):
         self.annotations.pop(layer)
         self.annotation_keys.pop(layer)
 
-    def select(self, layer):
+    def select(self, layer: ClassVar[Annotation]):
+        """
+        Return all annotations in a layer
+        """
         layer = self.aliases.get(layer, layer)
         return self.annotations[layer]
 
-    def covered(self, layer, span):
+    def covered(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that are covered by the input span
+        """
         layer = self.aliases.get(layer, layer)
         begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         end = bisect.bisect_left(self.annotation_keys[layer], span.end)
         return self.annotations[layer][begin:end]
 
-    def preceeding(self, layer, span):
+    def preceeding(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that precede the input span
+        """
         layer = self.aliases.get(layer, layer)
         end = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         return self.annotations[layer][0:end]
 
-    def following(self, layer, span):
+    def following(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that follow the input span
+        """
         layer = self.aliases.get(layer, layer)
         end = bisect.bisect_right(self.annotation_keys[layer], span.end)
         return self.annotations[layer][end:]
@@ -224,7 +246,7 @@ class ViewMappedSpandex(object):
         Args:
         wrapped_spandex (Spandex) - The original Spandex which we want to inject
             a view mapping
-        view_map (dict) - A map between the names used by the 
+        view_map (dict) - A map between the names used by the
             analyzer function and the names specified by the pipeline
         """
         self._wrapped_spandex = wrapped_spandex
