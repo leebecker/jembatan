@@ -100,7 +100,6 @@ class AggregateAnalysisFunction(AnalysisFunction):
         self.view_maps.append(view_map)
         self.af_kwargs_list.append(kwargs)
 
-
     def process(self, spndx, **kwargs):
         """
         Runs the aggregate analysis function (pipeline) defined through calls
