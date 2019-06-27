@@ -190,7 +190,7 @@ class Spandex(object):
         """
         Return text covered by the span
         """
-        return self.content[span.begin:span.end]
+        return self.content_string[span.begin:span.end]
 
     def append(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
         layer = self.aliases.get(layer, layer)
