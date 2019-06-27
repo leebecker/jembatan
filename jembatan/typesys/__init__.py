@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import total_ordering
 from jembatan.core.spandex import Span
 from typing import List, Generic, TypeVar
 import collections
@@ -25,8 +26,12 @@ def namedtuple_with_defaults(typename, field_names, default_values=()):
 
 
 @dataclass
+@total_ordering
 class Annotation:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
+
+    def __lt__(self, other):
+        return id(self) < id(other)
 
 
 # Create template Type variable
