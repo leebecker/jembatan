@@ -44,14 +44,27 @@ class SpandexJsonEncoder(json.JSONEncoder):
             return spandex_obj
 
         elif isinstance(obj, spandex.Span):
-            return [obj.begin, obj.end]
+            return {
+                '_type': 'spandex_span',
+                'begin': obj.begin,
+                'end': obj.end
+            }
         elif isinstance(obj, Sequence) and not isinstance(obj, str):
             # handle non-string sequences (like lists or iterators)
             return [self.default(i) for i in obj]
         elif isinstance(obj, jemtypes.Annotation):
-            annotation_obj = {f: self.default(getattr(obj, f)) for f in obj.__dataclass_fields__}
+            annotation_obj = {}
             annotation_obj['_type'] = "spandex_annotation"
             annotation_obj['_annotation_type'] = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
+            annotation_obj['_fields'] = [
+                {
+                    '_type': 'annotation_field',
+                    'name': f,
+                    'value': self.default(getattr(obj, f))
+                } for f in obj.__dataclass_fields__ if f != 'id'
+            ]
+            annotation_obj['id'] = str(obj.id)
+
             return annotation_obj
         elif isinstance(obj, jemtypes.AnnotationRef):
             return {
@@ -128,7 +141,7 @@ class SpandexJsonDecoder(json.JSONDecoder):
                         annotation = self.object_hook(annotation_obj)
                         span_obj = span_annotation_obj['span']
                         annotation_type = getattr(module, class_name)
-                        span = spandex.Span(int(span_obj[0]), int(span_obj[1]))
+                        span = spandex.Span(int(span_obj['begin']), int(span_obj['end']))
                         self.layer_registry[layer_name][annotation.id] = (span, annotation)
 
                     spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
@@ -150,10 +163,11 @@ class SpandexJsonDecoder(json.JSONDecoder):
                 annotation = annotation_type(id=annotation_id)
 
             # now fill out fields
-            for fieldname, field in annotation_type.__dataclass_fields__.items():
-                if fieldname == "id":
-                    continue
-                setattr(annotation, fieldname, self.object_hook(obj[fieldname]))
+            for field in obj['_fields']:
+                name = field['name']
+                if name in annotation_type.__dataclass_fields__:
+                    setattr(annotation, name, self.object_hook(field['value']))
+
             return annotation
 
         elif obj_type == 'annotation_ref':
