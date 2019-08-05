@@ -1,12 +1,21 @@
-import bisect
 from collections import namedtuple
 from functools import total_ordering
+from typing import ClassVar, Iterable, Union, Tuple
+
+import bisect
+
 
 @total_ordering
 class Span(namedtuple("Span", ['begin', 'end'])):
     """
     A class defining offsets and spans over textual content.  The ordering of these
-    allows for convenient query within a Spandex
+    allows for convenient query within a Spandex, it has two named fields
+    `begin` and `end`.
+
+    Examples:
+        # construction
+        span1 = Span(begin=0, end=10)
+        span2 = Span(5, 10)
     """
 
     @property
@@ -21,7 +30,7 @@ class Span(namedtuple("Span", ['begin', 'end'])):
     def length(self):
         return self.end - self.begin
 
-    def contains(self, pos):
+    def contains(self, pos: int):
         return pos >= self.begin and pos < self.end
 
     def crosses(self, other):
@@ -42,12 +51,26 @@ class Span(namedtuple("Span", ['begin', 'end'])):
         else:
             return self.begin < other.begin
 
+    def __hash__(self):
+        return (self.begin, self.end).__hash__()
+
+    def to_json(self):
+        return self._asdict()
+
+    def spanned(self, spndx):
+        return spndx.spanned(self)
+
+    @classmethod
+    def from_json(self, obj):
+        return Span(**obj)
+
+
 class DefaultViewOps(object):
 
     def __init__(self):
         pass
 
-    def get_view(self, spndx, viewname):
+    def get_view(self, spndx, viewname: str):
 
         root = spndx.root
 
@@ -60,14 +83,15 @@ class DefaultViewOps(object):
 
         return view
 
-    def create_view(self, spndx, viewname, content):
+    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
         root = spndx if not spndx.root else spndx.root
 
-        new_view_spndx = Spandex(content, root, viewname)
+        new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, root=root, viewname=viewname)
         if viewname in root.views:
             raise KeyError("View {} already exists in Spandex{}".format(viewname, root))
         root.views[viewname] = new_view_spndx
         return new_view_spndx
+
 
 class ViewMappedViewOps(DefaultViewOps):
     """ Overrides ViewOps by resolving view names by way of a view_map
@@ -80,21 +104,29 @@ class ViewMappedViewOps(DefaultViewOps):
         mapped_viewname = self.view_map[viewname]
         return super(ViewMappedViewOps, self).get_view(spndx, mapped_viewname)
 
-    def create_view(self, spndx, viewname, content):
+    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
         mapped_viewname = self.view_map[viewname]
-        return super(ViewMappedViewOps, self).create_view(spndx, mapped_viewname, content)
+        return super(ViewMappedViewOps, self).create_view(spndx,
+                                                          viewname=mapped_viewname,
+                                                          content_string=content_string,
+                                                          content_mime=content_mime)
 
 
-SpandexConstants = namedtuple("SpandexContstants", 
-        ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
+SpandexConstants = namedtuple("SpandexContstants", ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
+
 constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 
 
 # object is mutable for performant reasons
 class Spandex(object):
+    from jembatan.typesys import Annotation
+    """
+    Spandex - data structure for holding views of data, its content, and annotations
+    """
 
-    def __init__(self, text, root=None, viewname=None):
-        self._content = text 
+    def __init__(self, content_string: str=None, content_mime: str = None, root=None, viewname=None):
+        self._content_string = content_string
+        self._content_mime = content_mime
         self._annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
@@ -114,7 +146,6 @@ class Spandex(object):
     def __repr__(self):
         return "<{}/{} at 0x{:x}>".format(self.__class__.__name__, self.viewname, id(self))
 
-
     @property
     def is_root(self):
         return self.root == self
@@ -124,79 +155,90 @@ class Spandex(object):
         return self.root._views
 
     @property
-    def content(self):
-        return self._content
+    def content_string(self):
+        return self._content_string
 
-    @content.setter
-    def content(self, value):
-        self._content = value
+    @content_string.setter
+    def content_string(self, value):
+        self._content_string = value
+
+    @property
+    def content_mime(self):
+        return self._content_mime
+
+    @content_mime.setter
+    def content_mime(self, value):
+        self._content_mime = value
 
     @property
     def annotations(self):
         return self._annotations
 
-    def get_view(self, viewname):
+    def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
-    def __getitem__(self, viewname):
+    def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
-    def create_view(self, viewname, content):
-        return self.viewops.create_view(self, viewname, content)
-    
+    def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
+        return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
-    def compute_keys(self, layer_annotations):
+    def compute_keys(self, layer_annotations: Iterable[Tuple[Span, Annotation]]):
         return [a[0][0] for a in layer_annotations]
-        
 
-    def spanned(self, span):
-        return self.content[span.begin:span.end]
+    def spanned(self, span: Span):
+        """
+        Return text covered by the span
+        """
+        return self.content_string[span.begin:span.end]
 
-
-    def append(self, layer, *span_obj_pairs):
+    def append(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
         layer = self.aliases.get(layer, layer)
         items = sorted(self._annotations.get(layer, []) + list(span_obj_pairs))
         keys = self.compute_keys(items)
         self.annotations[layer] = items
         self.annotation_keys[layer] = keys
 
-    def has_layer(self, layer):
-        layer = self.aliases.get(layer, layer)
-        self.aliases[alias] = layer
-        return layer in self.annotations
-
-    def add_layer_alias(self, alias, layer):
-        self.aliases[alias] = layer
-
-    def add_layer(self, layer, span_obj_pairs):
+    def add_layer(self, layer: ClassVar[Annotation], span_obj_pairs: Iterable[Tuple[Span, Annotation]]):
         layer = self.aliases.get(layer, layer)
         items = sorted(span_obj_pairs)
         self.annotations[layer] = items
         self.annotation_keys[layer] = self.compute_keys(items)
 
-    def remove_layer(self, layer):
+    def remove_layer(self, layer: ClassVar[Annotation]):
         self.annotations.pop(layer)
         self.annotation_keys.pop(layer)
 
-
-    def select(self, layer):
+    def select(self, layer: ClassVar[Annotation]):
+        """
+        Return all annotations in a layer
+        """
         layer = self.aliases.get(layer, layer)
         return self.annotations[layer]
 
-    def covered(self, layer, span):
+    def covered(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that are covered by the input span
+        """
         layer = self.aliases.get(layer, layer)
         begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         end = bisect.bisect_left(self.annotation_keys[layer], span.end)
         return self.annotations[layer][begin:end]
 
-    def preceeding(self, layer, span):
+    def preceeding(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that precede the input span
+        """
         layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_left(spannedex.annotation_keys[layer], span.begin)
+        end = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         return self.annotations[layer][0:end]
 
-    def following(self, layer, span):
+    def following(self, layer: ClassVar[Annotation], span: Span):
+        """
+        Return all annotations in a layer that follow the input span
+        """
         layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_right(spannedex.annotation_keys[layer], span.end)
+        end = bisect.bisect_right(self.annotation_keys[layer], span.end)
         return self.annotations[layer][end:]
 
 
@@ -210,7 +252,7 @@ class ViewMappedSpandex(object):
         Args:
         wrapped_spandex (Spandex) - The original Spandex which we want to inject
             a view mapping
-        view_map (dict) - A map between the names used by the 
+        view_map (dict) - A map between the names used by the
             analyzer function and the names specified by the pipeline
         """
         self._wrapped_spandex = wrapped_spandex
@@ -218,21 +260,24 @@ class ViewMappedSpandex(object):
 
     @property
     def content(self):
-        return self._wrapped_spandex._content
+        return self._wrapped_spandex._content_string
 
     @content.setter
     def content(self, value):
-        self._wrapped_spandex._content = value
+        self._wrapped_spandex._content_string = value
 
     def get_view(self, viewname):
         view = self.viewops.get_view(self._wrapped_spandex, viewname)
         return ViewMappedSpandex(view, self.viewops)
 
-    def __getitem__(self, viewname):
+    def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
-    def create_view(self, viewname, content):
-        view = self.viewops.create_view(self._wrapped_spandex, viewname, content)
+    def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
+        view = self.viewops.create_view(self._wrapped_spandex,
+                                        viewname,
+                                        content_string=content_string,
+                                        content_mime=content_mime)
         return ViewMappedSpandex(view, self.viewops)
 
     def __getattr__(self, attr):
@@ -246,4 +291,5 @@ class ViewMappedSpandex(object):
         # proxy to the wrapped object
         return getattr(self._wrapped_spandex, attr)
 
-__all__= ['errors']
+
+__all__ = ['errors', 'encoders']

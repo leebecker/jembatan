@@ -1,4 +1,10 @@
+from dataclasses import dataclass, field
+from functools import total_ordering
+from jembatan.core.spandex import Span
+from typing import List, Generic, TypeVar
 import collections
+import uuid
+
 
 class HasSourceRef(object):
     """ Simple Trait Class to add a source field via inheritance.
@@ -6,7 +12,6 @@ class HasSourceRef(object):
     between services
     """
     source = None
-
 
 
 def namedtuple_with_defaults(typename, field_names, default_values=()):
@@ -20,33 +25,76 @@ def namedtuple_with_defaults(typename, field_names, default_values=()):
     return T
 
 
-class Document(namedtuple_with_defaults("Document", [])): 
+@dataclass
+@total_ordering
+class Annotation:
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+
+    def __lt__(self, other):
+        return id(self) < id(other)
+
+
+# Create template Type variable
+T = T = TypeVar('T')
+
+
+@dataclass(repr=False)
+class AnnotationRef(Generic[T]):
+    span: Span = None
+    ref: T = None
+
+    def __repr__(self):
+        return f"<AnnotationRef[{self.ref.__class__.__module__}.{self.ref.__class__.__name__}]: {self.ref.id}>"
+
+
+@dataclass
+class Document(Annotation):
     """ Top level document type """
     pass
 
-class Block(namedtuple_with_defaults("Block", ["tag"])):
+
+@dataclass
+class Block(Annotation):
+    tag: str = None
+
+
+@dataclass
+class Sentence(Annotation):
     pass
 
-class Sentence(namedtuple_with_defaults("Sentence", []), HasSourceRef):
+
+@dataclass
+class Token(Annotation):
+    lemma: str = None
+    pos: str = None
+    tag: str = None
+
+
+# Placeholder before redefining below
+class DependencyNode(Annotation):
     pass
 
-class Token(
-        namedtuple_with_defaults("Token", ["lemma", "partOfSpeech", "headDependencyEdges", "childDependencyEdges"]),
-        HasSourceRef): 
-    def __repr__(self):
-        return "<{}:{}>".format(self.__class__.__name__, id(self))
 
-class PartOfSpeech(namedtuple_with_defaults("PartOfSpeech", ["pos", "tag"])): 
-    pass
+@dataclass
+class DependencyEdge(Annotation):
+    label: str = None
+    head: AnnotationRef[DependencyNode] = None
+    child: AnnotationRef[DependencyNode] = None
 
-class DependencyEdge(namedtuple_with_defaults("DependencyEdge", ["label", "head", "child"])): 
-    pass
 
-class Entity(
-        namedtuple_with_defaults("Entity", ["name", "salience", "type"]),
-        HasSourceRef
-        ): 
-    pass
+@dataclass
+class DependencyNode(Annotation):
+    head_edge: AnnotationRef[DependencyEdge] = None
+    child_edges: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
 
-class NounChunk(namedtuple_with_defaults("Entity", ["type"]), HasSourceRef): 
+
+@dataclass
+class Entity(Annotation):
+    name: str = None
+    salience: str = None
+    label: str = None
+
+
+@dataclass
+class NounChunk(Entity):
     pass

@@ -29,7 +29,7 @@ spndx = Spandex("""Education is all a matter of building bridges.
     When one burns one's bridges, what a very nice fire it makes""")
 
 # initialize and run Spacy on Spandex
-en_nlp = English()
+en_nlp = spacy.load("en_core_web_sm")
 spacy_analyzer = SpacyAnalyzer(en_nlp)
 spacy_analyzer(spndx)
 
@@ -74,13 +74,16 @@ Sentence 1: When one burns one's bridges, what a very nice fire it makes
 
 ## Tutorial
 
-### Spandex
-The Spandex is the central data structure through which all analyses in
-Jembatan pass.  The Spandex houses layers of annotations over 
+### Spans and Spandex
+A `Span` is essentially a tuple with a `begin` and `end` field which (presumably) define character offsets.  Spans
+are comparable, to allow for indexing and fast retrieval relative to other Spans.
+
+The `Spandex` is the central data structure through which all analyses in
+Jembatan pass.  The Spandex houses layers of spans plus annotations over 
 different views of a document/resource.  Typically Jembatan pipelines 
 are formed by passing the same Spandex objects to multiple analyzers.
 
-To get a better idea of its capabilities let's play with the Spandex
+To get a better idea of these capabilities let's play with the Spandex
 APIs.
 
 ```
@@ -88,6 +91,66 @@ from jembatan.core.spandex import (Span, Spandex)
 
 # Create Spandex initialized with text
 spndx = Spandex("Up until this point we resisted the urge to make a reference to lycra and hot pants.")
+
+# you can construct Spans in two ways
+up_span = Span(begin=0, end=2)
+this_span = Span(10, 14)
+
+# print text of up_span.  Should yield 'Up' in both cases
+# method 1
+print(spndx.spanned(up_span))
+
+# method 2
+print(up_span.spanned(spndx))
+
+# print text of this_span
+print(spndx.spanned(this_span)
+```
+
+### Typesystem and Annotations
+Spans are useful, but usually we want to attach some sort data to the Span.  For example in named entity recognition
+we may want to know if the Span is a location, place or organization.
+
+Annotations are implemented as python dataclasses and are paired with Spans when getting indexed into a Spandex.
+Jembatan has a basic NLP typesystem defined in `jembatan.typesys` including common  like `Token`, `Sentence`, `DependencyNode`, etc...
+
+#### Defining your own types
+You can define your own types by inheriting from `jemtypes.Annotation` and decorating it with the `@dataclass`.  Read the [dataclasses documentation](https://docs.python.org/3/library/dataclasses.html) to learn more about defining fields
+with defaults and type hints.
+
+```
+from dataclasses import dataclass
+import jembatan.typesys as jemtypes
+
+@dataclass
+class Lycra(jemtypes.Annotation):
+    index: int = 0
+```
+
+Referring back to the Spandex example above, we can annotate it with an occurence of Lycra as follows:
+```
+
+lycra_span = Span(64,69)
+lycra = Lycra(index=0)
+
+spndx.append(Lycra, (lycra_span, lycra))
+```
+
+If you would like to define types that link to other types, we suggest using `jemtypes.AnnotationRef` as it limits
+exposure to heavy recursion during serialization.  A toy example is shown below, a more real world example can be found
+in the definition of `jemtypes.DependencyNode` and `jemtypes.DependencyEdge`.
+
+```
+@dataclass
+class HotPants(jemtypes.Annotation):
+    lycra: jemtypes.AnnotationRef[Lycra] = None
+```
+
+And to instantiate and populate a HotPants instance
+```
+    hot_pants_span = Span(74,83)
+    lycra_ref = jemtypes.AnnotationRef(span=hot_pants_span, ref=lyrca)
+    hot_pants = HotPants(lycra=lycra_ref)
 ```
 
 ### Analysis Functions
@@ -99,13 +162,13 @@ more views of the text and write out information for other use.
 
 #### Function-based
 For the purposes of illustration, let's create functions that
-annotates the text with mentions of lycra or hot pants.
+annotate the text with mentions of lycra or hot pants.
 
 ```
 import re
 from collections import namedtuple
 
-Lycra = namedtuple(idx)
+
 def lycra_analyzer(spndx, **kwargs):
     lycra_re = re.compile("(lycra)". re.IGNORECASE)
 
@@ -113,7 +176,7 @@ def lycra_analyzer(spndx, **kwargs):
     mentions = []
     for i, m in enumerate(lycra_re.finditer(spndx.content)):
         span = Span(*m.span())
-        mention = Lycra(i)
+        mention = Lycra(index=i)
         mentions.append((span, mention))
 
     # Add layer of annotation to the Spandex
