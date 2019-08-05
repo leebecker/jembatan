@@ -95,82 +95,10 @@ class SpacyToJson(object):
             "sentences": sentences,
             "tokens": tokens,
             "entities": entities,
-            "documentSentiment": { },
+            "documentSentiment": {},
             "language": "unk"
         }
 
-
-#class JsonToSpandex(object):
-#
-#    def create(self, content, jsondata):
-#        spndx = Spandex(content)
-#
-#        # Extract sentences
-#        spndx.add_layer(Sentence, [self.convert_sentence(s) for s in jsondata['sentences']])
-#
-#        # Extract tokens and dependency parse
-#        json_toks = jsondata['tokens']
-#        all_toks = [self.convert_token(t) for t in json_toks]
-#        toks = [tok for (tok, json_tok) in zip(all_toks, json_toks) if not self.token_is_space(json_tok)]
-#        spndx.add_layer(Token, toks)
-#        spndx.add_layer_alias("dependency_nodes", Token)
-#        
-#        depedges = []
-#        for ((tok_span, tok), json_tok) in zip(all_toks, json_toks):
-#            json_depedge = json_tok.get("dependencyEdge", None)
-#            if json_depedge:
-#                head_idx = json_depedge['headTokenIndex']
-#                headtok_span, headtok = all_toks[head_idx]
-#                depspan = Span(begin=min(tok_span.begin, headtok_span.begin), end=max(tok_span.end, headtok_span.end))
-#                depedge = DependencyEdge(label=json_depedge['label'], head=(headtok_span, headtok), child=(tok_span, tok))
-#                tok.headDependencyEdges.append(depedge)
-#                headtok.childDependencyEdges.append(depedge)
-#                depedges.append((depspan, depedge))
-#        spndx.add_layer(DependencyEdge, depedges)
-#
-#        # Extract entities
-#        entities = list(itertools.chain.from_iterable([self.convert_entity(e) for e in jsondata.get('entities', [])]))
-#        spndx.add_layer(Entity, entities)
-#
-#        return spndx
-#
-#        
-#
-#    def convert_sentence(self, jsonsent):
-#        begin = jsonsent['text']['beginOffset']
-#        end = begin + len(jsonsent['text']['content'])
-#        return Span(begin, end), Sentence(sentiment=None)
-#        
-#    def convert_token(self, jsontok):
-#        begin = jsontok['text']['beginOffset']
-#        end = begin + len(jsontok['text']['content'])
-#        span = Span(begin, end)
-#        lemma = jsontok.get('lemma', None)
-#        pos = jsontok.get('partOfSpeech', {}).get('pos', None)
-#        tag = jsontok.get('partOfSpeech', {}).get('tag', None)
-#        postag = PartOfSpeech(pos=pos, tag=tag)
-#
-#        tok = Token(lemma=lemma, partOfSpeech=postag, headDependencyEdges=[], childDependencyEdges=[])
-#        return span, tok
-#
-#    def token_is_space(self, jsontok):
-#        return jsontok.get('partOfSpeech', {}).get('pos', None) == "SP"
-#
-#    def convert_entity(self, entity):
-#        # we don't have coref chain from spacy, but we will convert each mention to its own
-#        # entity  Perhaps better to have entity and links to mentions.
-#        # To revisit 
-#        entities = []
-#        entity['type']
-#        entity['mentions'][0]
-#        for mention in entity['mentions']:
-#            begin = mention['beginOffset']
-#            end = begin + len(mention['content'])
-#            entities.append((Span(begin, end), Entity(name=None, salience=None, type=entity['type'])))
-#        return entities
-#
-#    def convert_noun_chunk(self, noun_chunk):
-#        return Span(noun_chunk.start_char, noun_chunk.end_char), NounChunk(type=noun_chunk.label_)
 
 class SpacyToSpandexUtils:
 
@@ -190,10 +118,9 @@ class SpacyToSpandexUtils:
 
     @staticmethod
     def convert_token(spacytok, window_span=None):
-        span = Span(spacytok.idx, spacytok.idx + len(spacytok))  
+        span = Span(spacytok.idx, spacytok.idx + len(spacytok))
         if window_span:
             span = Span(window_span.begin + span.begin, window_span.begin + span.end)
-        #tok = Token(lemma=spacytok.lemma_, headDependencyEdges=[], childDependencyEdges=[], pos=spacytok.tag_, tag=spacytok.pos_)
         tok = Token(lemma=spacytok.lemma_, pos=spacytok.tag_, tag=spacytok.pos_)
         tok.source = spacytok
         return span, tok
