@@ -6,11 +6,17 @@ from typing import Pattern
 
 class RegexMatchAnnotator(AnalysisFunction):
     """
-    Will turn anything matching annotation into the specified type
-
-    @param match_re
+    Spandex AnalysisFunction which will find matches from the specified regular expression and will create
+    the corresponding annotation type when found over the view
     """
     def __init__(self, match_re: Pattern[str], annotation_type: Annotation, window_type: Annotation=None):
+        """
+        Creates Spandex RegexMatch Analyzer
+
+        @param match_re - regular expression specifying match parameters
+        @param annotation_type - annotation type to create for matching spans
+        @param window_type - annotation type over which to run analyses (i.e. over sentences, paragraphs, etc)
+        """
         self.match_re = match_re
         self.annotation_type = annotation_type
         self.window_type = window_type
@@ -34,8 +40,19 @@ class RegexMatchAnnotator(AnalysisFunction):
 
 
 class RegexSplitAnnotator(AnalysisFunction):
+    """
+    Spandex AnalysisFunction which will split view content based on the splitting regex.  Not splitting
+    matches become annotations.
+    """
 
     def __init__(self, split_re: Pattern[str], annotation_type: Annotation, window_type: Annotation=None):
+        """
+        Creates Spandex Regex Split Analyzer
+
+        @param split_re - regular expression to split view content on
+        @param annotation_type - annotation type to create for matching spans
+        @param window_type - annotation type over which to run analyses (i.e. over sentences, paragraphs, etc)
+        """
         self.split_re = split_re
         self.annotation_type = annotation_type
         self.window_type = window_type
