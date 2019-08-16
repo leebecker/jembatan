@@ -14,7 +14,7 @@ class Span(namedtuple("Span", ['begin', 'end'])):
 
     Examples:
         # construction
-        span1 = Span(begin=0, end=10)
+        span1 = Span(begin=1, end=10)
         span2 = Span(5, 10)
     """
 
@@ -128,6 +128,7 @@ class Spandex(object):
         self._content_string = content_string
         self._content_mime = content_mime
         self._annotations = {}
+        self._view_annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
         self.viewops = DefaultViewOps()
@@ -174,6 +175,10 @@ class Spandex(object):
     def annotations(self):
         return self._annotations
 
+    @property
+    def view_annotations(self):
+        return self._view_annotations
+
     def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
@@ -214,7 +219,7 @@ class Spandex(object):
         Return all annotations in a layer
         """
         layer = self.aliases.get(layer, layer)
-        return self.annotations[layer]
+        return self.annotations.get(layer, [])
 
     def covered(self, layer: ClassVar[Annotation], span: Span):
         """
