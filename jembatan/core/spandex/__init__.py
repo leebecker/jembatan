@@ -214,7 +214,7 @@ class Spandex(object):
         Return all annotations in a layer
         """
         layer = self.aliases.get(layer, layer)
-        return self.annotations[layer]
+        return self.annotations.get(layer, [])
 
     def covered(self, layer: ClassVar[Annotation], span: Span):
         """
