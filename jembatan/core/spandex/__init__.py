@@ -3,6 +3,7 @@ from functools import total_ordering
 from typing import ClassVar, Iterable, Union, Tuple
 
 import bisect
+import itertools
 
 
 @total_ordering
@@ -57,8 +58,8 @@ class Span(namedtuple("Span", ['begin', 'end'])):
     def to_json(self):
         return self._asdict()
 
-    def spanned(self, spndx):
-        return spndx.spanned(self)
+    def spanned_text(self, spndx):
+        return spndx.spanned_text(self)
 
     @classmethod
     def from_json(self, obj):
@@ -191,13 +192,13 @@ class Spandex(object):
     def compute_keys(self, layer_annotations: Iterable[Tuple[Span, Annotation]]):
         return [a[0][0] for a in layer_annotations]
 
-    def spanned(self, span: Span):
+    def spanned_text(self, span: Span):
         """
         Return text covered by the span
         """
         return self.content_string[span.begin:span.end]
 
-    def append(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
+    def add_annotations(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
         layer = self.aliases.get(layer, layer)
         items = sorted(self._annotations.get(layer, []) + list(span_obj_pairs))
         keys = self.compute_keys(items)
@@ -206,22 +207,20 @@ class Spandex(object):
 
     def add_layer(self, layer: ClassVar[Annotation], span_obj_pairs: Iterable[Tuple[Span, Annotation]]):
         layer = self.aliases.get(layer, layer)
-        items = sorted(span_obj_pairs)
-        self.annotations[layer] = items
-        self.annotation_keys[layer] = self.compute_keys(items)
+        self.append_annotations(layer, span_obj_pairs)
 
     def remove_layer(self, layer: ClassVar[Annotation]):
         self.annotations.pop(layer)
         self.annotation_keys.pop(layer)
 
-    def select(self, layer: ClassVar[Annotation]):
+    def select(self, layer: ClassVar[Annotation]) -> Iterable[Tuple[Span, Annotation]]:
         """
         Return all annotations in a layer
         """
         layer = self.aliases.get(layer, layer)
         return self.annotations.get(layer, [])
 
-    def covered(self, layer: ClassVar[Annotation], span: Span):
+    def select_covered(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Tuple[Span, Annotation]]:
         """
         Return all annotations in a layer that are covered by the input span
         """
@@ -230,7 +229,7 @@ class Spandex(object):
         end = bisect.bisect_left(self.annotation_keys[layer], span.end)
         return self.annotations[layer][begin:end]
 
-    def preceeding(self, layer: ClassVar[Annotation], span: Span):
+    def select_preceeding(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Tuple[Span, Annotation]]:
         """
         Return all annotations in a layer that precede the input span
         """
@@ -238,13 +237,19 @@ class Spandex(object):
         end = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         return self.annotations[layer][0:end]
 
-    def following(self, layer: ClassVar[Annotation], span: Span):
+    def select_following(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Tuple[Span, Annotation]]:
         """
         Return all annotations in a layer that follow the input span
         """
         layer = self.aliases.get(layer, layer)
         end = bisect.bisect_right(self.annotation_keys[layer], span.end)
         return self.annotations[layer][end:]
+
+    def select_all(self, span: Span) -> Iterable[Tuple[Span, Annotation]]:
+        """
+        Return all annotations in a view
+        """
+        return itertools.chain([annotations for layer, annotations in self.annotations.items()])
 
 
 class ViewMappedSpandex(object):
