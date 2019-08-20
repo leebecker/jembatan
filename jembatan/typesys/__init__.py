@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import total_ordering
 from jembatan.core.spandex import Span
-from typing import List, Generic, TypeVar
+from typing import Generic, TypeVar
 import collections
 import uuid
 
@@ -45,56 +45,3 @@ class AnnotationRef(Generic[T]):
 
     def __repr__(self):
         return f"<AnnotationRef[{self.ref.__class__.__module__}.{self.ref.__class__.__name__}]: {self.ref.id}>"
-
-
-@dataclass
-class Document(Annotation):
-    """ Top level document type """
-    pass
-
-
-@dataclass
-class Block(Annotation):
-    tag: str = None
-
-
-@dataclass
-class Sentence(Annotation):
-    pass
-
-
-@dataclass
-class Token(Annotation):
-    lemma: str = None
-    pos: str = None
-    tag: str = None
-
-
-# Placeholder before redefining below
-class DependencyNode(Annotation):
-    pass
-
-
-@dataclass
-class DependencyEdge(Annotation):
-    label: str = None
-    head: AnnotationRef[DependencyNode] = None
-    child: AnnotationRef[DependencyNode] = None
-
-
-@dataclass
-class DependencyNode(Annotation):
-    head_edge: AnnotationRef[DependencyEdge] = None
-    child_edges: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
-
-
-@dataclass
-class Entity(Annotation):
-    name: str = None
-    salience: str = None
-    label: str = None
-
-
-@dataclass
-class NounChunk(Entity):
-    pass
