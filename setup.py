@@ -11,4 +11,7 @@ setup(name='jembatan',
           "spacy",
           "dataclasses"
       ],
+      test_require=[
+          "pytest"
+      ],
       zip_safe=False)

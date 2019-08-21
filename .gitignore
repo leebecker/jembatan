@@ -1,101 +1,51 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+# Python-related
+*venv/
+*.pyc
 *.egg-info/
-.installed.cfg
 *.egg
-
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
+*.eggs
+build
+dist/
+*.retry
 .coverage
-.coverage.*
+htmlcov
 .cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
+.pytest_cache
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
+# Log Files
 *.log
-local_settings.py
 
-# Flask stuff:
-instance/
-.webassets-cache
+# Mac OS X Files
+.DS_Store
 
-# Scrapy stuff:
-.scrapy
+# Ansible Retry Files
+*.retry
 
-# Sphinx documentation
-docs/_build/
+# Swap files
+*.swp
+*.orig
+*.swo
 
-# PyBuilder
-target/
+# IDE
+**.iml
+# IDEs and editors
+.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
-# pyenv
-.python-version
+git
 
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
-
-# dotenv
-.env
-
-# virtualenv
-.venv
-venv/
-ENV/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
+# data files
+**/.data/
+**/.vector_cache/

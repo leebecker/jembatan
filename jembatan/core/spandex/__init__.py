@@ -197,6 +197,12 @@ class Spandex(object):
     def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
+    def get_or_create_view(self, viewname: str):
+        try:
+            view = self.get_view(viewname)
+        except KeyError:
+            view.create_view(viewname)
+
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
