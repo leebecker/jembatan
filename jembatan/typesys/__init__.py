@@ -3,6 +3,7 @@ from functools import total_ordering
 from jembatan.core.spandex import Span
 from typing import Generic, TypeVar
 import collections
+import math
 import uuid
 
 
@@ -27,11 +28,32 @@ def namedtuple_with_defaults(typename, field_names, default_values=()):
 
 @dataclass
 @total_ordering
-class Annotation:
+class Annotation(Span):
     id: uuid.UUID = field(default_factory=uuid.uuid4)
 
-    def __lt__(self, other):
-        return id(self) < id(other)
+    @property
+    def span(self):
+        return Span(self.begin, self.end)
+
+    @span.setter
+    def span(self, span: Span):
+        self.begin = span.begin
+        self.end = span.end
+
+    def __lt__(self, other: Span):
+        if not isinstance(other, Span):
+            return NotImplemented
+
+        span1 = Span(self.begin, self.end)
+        span2 = Span(other.begin, other.end)
+        if isinstance(other, Annotation):
+            return (span1, self.id) < (span2, other.id)
+        else:
+            return span1 < span2
+
+
+    def __hash__(self):
+        return (self.id, self.begin, self.end).__hash__()
 
 
 # Create template Type variable
@@ -40,8 +62,21 @@ T = T = TypeVar('T')
 
 @dataclass(repr=False)
 class AnnotationRef(Generic[T]):
-    span: Span = None
-    ref: T = None
+    obj: T = None
 
     def __repr__(self):
-        return f"<AnnotationRef[{self.ref.__class__.__module__}.{self.ref.__class__.__name__}]: {self.ref.id}>"
+        return f"<AnnotationRef[{self.obj.__class__.__module__}.{self.obj.__class__.__name__}]: {self.obj.id}>"
+
+    @classmethod
+    def deref_property(cls, val_func):
+        """
+        Decorator function that will dereference an annotation reference and wrap it in a property.
+        """
+
+        def get_ref(obj: Annotation):
+            """
+            Run passed in function on object and pull out span and annotation
+            """
+            v = val_func(obj)
+            return v.obj
+        return property(get_ref)

@@ -2,7 +2,7 @@ from copy import deepcopy
 from jembatan.core.af import AnalysisFunction
 from jembatan.core.spandex import Span, Spandex
 from jembatan.typesys import Annotation
-from typing import Iterable, Pattern, Tuple
+from typing import Iterable
 
 
 class BioChunking:
@@ -30,7 +30,7 @@ class BioChunking:
         return prefix, label
 
     def create_outcomes(self, spndx: Spandex,
-                        subchunks: Iterable[Tuple[Span, Annotation]], chunks: Iterable[Tuple[Span, Annotation]]):
+                        subchunks: Iterable[Annotation], chunks: Iterable[Annotation]):
         """
         """
         subchunk_outcomes = self.map_subchunks_to_outcome(spndx, chunks)
@@ -42,7 +42,7 @@ class BioChunking:
         attrib_func - function to parse tags and apply functions to output chunk type
         """
         chunks = []
-        texts = [spndx.spanned(span) for span, _ in subchunks]
+        texts = [spndx.spanned_text(span) for span, _ in subchunks]
         prev_prefix = "O"
         prev_label = ""
         for text, subchunk, outcome in zip(texts, subchunks, outcomes):

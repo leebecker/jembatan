@@ -111,13 +111,14 @@ class SpacyToSpandexUtils:
         end = begin + len(spacysent.text)
 
         if window_span:
-            sent_span = Span(window_span.begin + begin, window_span.begin + end)
+            sent_span = Span(begin=window_span.begin + begin, end=window_span.begin + end)
         else:
-            sent_span = Span(begin, end)
+            sent_span = Span(begin=begin, end=end)
 
-        sent_obj = Sentence()
-        sent_obj.source = spacysent
-        return sent_span, sent_obj
+        sent = Sentence()
+        sent.span = sent_span
+        sent.source = spacysent
+        return sent
 
     @staticmethod
     def convert_token(spacytok, window_span=None):
@@ -125,21 +126,23 @@ class SpacyToSpandexUtils:
         if window_span:
             span = Span(window_span.begin + span.begin, window_span.begin + span.end)
         tok = Token(lemma=spacytok.lemma_, pos=spacytok.tag_, tag=spacytok.pos_)
+        tok.span = span
         tok.source = spacytok
-        return span, tok
+        return tok
 
     @staticmethod
     def convert_entity(entity, window_span=None):
         if window_span:
-            entity_span = Span(window_span.begin + entity.start_char, 
+            entity_span = Span(window_span.begin + entity.start_char,
                                window_span.begin + entity.end_char)
         else:
-            entity_span = Span(entity.start_char, 
+            entity_span = Span(entity.start_char,
                                entity.end_char)
 
-        entity_obj = Entity(name=None, salience=None, label=entity.label_)
-        entity_obj.source = entity
-        return entity_span, entity_obj
+        entity = Entity(name=None, salience=None, label=entity.label_)
+        entity.span = entity_span
+        entity.source = entity
+        return entity
 
     @staticmethod
     def convert_noun_chunk(noun_chunk, window_span=None):
@@ -149,8 +152,9 @@ class SpacyToSpandexUtils:
                                    window_span.begin + noun_chunk.end_char)
         else:
             noun_chunk_span = Span(noun_chunk.start_char, noun_chunk.end_char)
-        noun_chunk_obj = NounChunk(label=noun_chunk.label_)
-        return noun_chunk_span, noun_chunk_obj
+        noun_chunk = NounChunk(label=noun_chunk.label_)
+        noun_chunk.span = noun_chunk_span
+        return noun_chunk
 
     @staticmethod
     def spacy_to_spandex(spacy_doc, spndx=None, annotation_layers=AnnotationLayers.ALL(), window_span=None):
@@ -160,13 +164,12 @@ class SpacyToSpandexUtils:
 
         if annotation_layers & AnnotationLayers.DOCUMENT:
             if window_span:
-                doc_span = window_span
+                doc = Document(begin=window_span.begin, end=window_span.end)
             else:
                 doc_span = Span(0, len(spndx.content_string))
+                doc = Document(begin=doc_span.begin, end=doc_span.end)
 
-            spndx.add_annotations(
-                Document,
-                *[(doc_span, Document())])
+            spndx.add_annotations(Document, doc)
 
         if annotation_layers & AnnotationLayers.SENTENCE:
             spndx.add_annotations(
@@ -183,58 +186,52 @@ class SpacyToSpandexUtils:
 
             if annotation_layers & AnnotationLayers.DEPPARSE:
                 # Pull out dependency graphs
-                span_to_nodes = {tok_span: DependencyNode() for (tok_span, tok) in toks}
+                span_to_nodes = {tok.span: DependencyNode(begin=tok.begin, end=tok.end) for tok in toks}
 
                 depedges = []
                 depnodes = []
                 depnode_spans = set()
-                for ((tok_span, tok), spacy_tok) in word_toks:
-                    headtok_span, headtok = all_toks[spacy_tok.head.i]
-                    head_span = Span(begin=headtok_span.begin, end=headtok_span.end)
-                    head_node = span_to_nodes[head_span]
-                    head_ref = AnnotationRef(span=head_span, ref=head_node)
-                    child_span = Span(begin=tok_span.begin, end=tok_span.end)
+                for (tok, spacy_tok) in word_toks:
+                    headtok = all_toks[spacy_tok.head.i]
+                    head_node = span_to_nodes[headtok.span]
+                    head_ref = AnnotationRef(obj=head_node)
+                    child_span = tok.span
                     child_node = span_to_nodes[child_span]
-                    child_ref = AnnotationRef(span=child_span, ref=child_node)
+                    child_ref = AnnotationRef(obj=child_node)
 
                     # get span for full dependency
-                    depspan = Span(begin=min(tok_span.begin, headtok_span.begin),
-                                   end=max(tok_span.end, headtok_span.end))
+                    depspan = Span(begin=min(tok.begin, headtok.begin),
+                                   end=max(tok.end, headtok.end))
                     # Build edges
                     depedge = DependencyEdge(label=spacy_tok.dep_, head_ref=head_ref, child_ref=child_ref)
-                    depedge_ref = AnnotationRef(span=depspan, ref=depedge)
+                    depedge.span = depspan
+                    depedge_ref = AnnotationRef(obj=depedge)
                     child_node.head_edge = depedge_ref
                     head_node.child_edges.append(depedge_ref)
-                    if head_span not in depnode_spans:
-                        depnodes.append((head_span, head_node))
-                        depnode_spans.add(head_span)
+                    if headtok.span not in depnode_spans:
+                        depnodes.append(head_node)
+                        depnode_spans.add(head_node.span)
 
                     if child_span not in depnode_spans:
-                        depnodes.append((child_span, child_node))
+                        depnodes.append(child_node)
                         depnode_spans.add(child_span)
-                    depedges.append((depspan, depedge))
+                    depedges.append(depedge)
                 # push dependency graph onto spandex
                 spndx.add_annotations(DependencyEdge, *depedges)
                 spndx.add_annotations(DependencyNode, *depnodes)
 
                 dep_parses = []
-                for sent_span, sent in spndx.select(Sentence):
-                    dep_parse = DependencyParse()
-                    dep_node_pairs = [p for p in spndx.select_covered(DependencyNode, sent_span)]
-                    for dep_node_span, dep_node in dep_node_pairs:
-                        print(dep_node.head_edge.ref.head[1], dep_node)
+                for sent in spndx.select(Sentence):
+                    dep_parse = DependencyParse(begin=sent.begin, end=sent.end)
+                    dep_nodes = [n for n in spndx.select_covered(DependencyNode, dep_parse)]
+                    for dep_node in dep_nodes:
                         if not dep_parse.root and dep_node.is_root:
                             # found the root
-                            dep_parse.root = AnnotationRef(dep_node_span, dep_node)
+                            dep_parse.root = AnnotationRef(dep_node)
                         dep_parse.edges.append(dep_node.head_edge)
-                    dep_parses.append((sent_span, dep_parse))
-                    print()
+                    dep_parses.append(dep_parse)
 
                 spndx.add_annotations(DependencyParse, *dep_parses)
-
-                #print(spndx.spanned_text(dep_node_span), dep_node.head_edge.ref.label, spndx.spanned_text(dep_node.head_edge.ref.head.span))
-      
-
 
         if annotation_layers & AnnotationLayers.ENTITY:
             spndx.add_annotations(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
