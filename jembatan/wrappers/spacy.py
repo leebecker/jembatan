@@ -7,26 +7,29 @@ import functools
 from enum import auto, Flag
 from jembatan.core.spandex import (Span, Spandex)
 from jembatan.core.af import AnalysisFunction
-from jembatan.typesys import (AnnotationRef, Document, Sentence, Token, NounChunk, DependencyEdge, Entity)
-import jembatan.typesys as jemtypes
+from jembatan.typesys import AnnotationRef
+from jembatan.typesys.chunking import NounChunk, Entity
+from jembatan.typesys.segmentation import (Document, Sentence, Token)
+from jembatan.typesys.syntax import (DependencyEdge, DependencyNode, DependencyParse)
+
 
 class AnnotationLayers(Flag):
     """Enumerated type useful for turning on/off behavior in Spacy Analyzers
     """
-    DOCUMENT=auto()
-    SENTENCE=auto()
-    TOKEN=auto()
-    DEPPARSE=auto()
-    ENTITY=auto()
-    NOUN_CHUNK=auto()
+    DOCUMENT = auto()
+    SENTENCE = auto()
+    TOKEN = auto()
+    DEPPARSE = auto()
+    ENTITY = auto()
+    NOUN_CHUNK = auto()
 
     @classmethod
     def NONE(cls):
-        return functools.reduce(lambda x,y: x|y, [f for f in cls])
+        return functools.reduce(lambda x, y: x | y, [f for f in cls])
 
     @classmethod
     def ALL(cls):
-        return functools.reduce(lambda x,y: x|y, [f for f in cls])
+        return functools.reduce(lambda x, y: x | y, [f for f in cls])
 
     @classmethod
     def contains(flagset, flag):
@@ -49,7 +52,7 @@ class SpacyToJson(object):
 
         partOfSpeech = {
             "tag": t.pos_,  # This switch is to make naming consistent with Google Natural Language API
-            "pos": t.tag_   # This is not a field in Google's API, but the original Treebank 
+            "pos": t.tag_   # This is not a field in Google's API, but the original Treebank
         }
 
 
@@ -161,12 +164,12 @@ class SpacyToSpandexUtils:
             else:
                 doc_span = Span(0, len(spndx.content_string))
 
-            spndx.append(
+            spndx.add_annotations(
                 Document,
                 *[(doc_span, Document())])
 
         if annotation_layers & AnnotationLayers.SENTENCE:
-            spndx.append(
+            spndx.add_annotations(
                 Sentence,
                 *[SpacyToSpandexUtils.convert_sentence(s, window_span) for s in spacy_doc.sents])
 
@@ -176,14 +179,15 @@ class SpacyToSpandexUtils:
             all_toks = [SpacyToSpandexUtils.convert_token(t, window_span) for t in spacy_toks]
             word_toks = [(tok, spacy_tok) for (tok, spacy_tok) in zip(all_toks, spacy_toks) if not spacy_tok.is_space]
             toks = [tok for (tok, spacy_tok) in word_toks]
-            spndx.append(Token, *toks)
+            spndx.add_annotations(Token, *toks)
 
             if annotation_layers & AnnotationLayers.DEPPARSE:
                 # Pull out dependency graphs
-                span_to_nodes = {tok_span: jemtypes.DependencyNode() for (tok_span, tok) in toks}
+                span_to_nodes = {tok_span: DependencyNode() for (tok_span, tok) in toks}
 
                 depedges = []
                 depnodes = []
+                depnode_spans = set()
                 for ((tok_span, tok), spacy_tok) in word_toks:
                     headtok_span, headtok = all_toks[spacy_tok.head.i]
                     head_span = Span(begin=headtok_span.begin, end=headtok_span.end)
@@ -197,22 +201,46 @@ class SpacyToSpandexUtils:
                     depspan = Span(begin=min(tok_span.begin, headtok_span.begin),
                                    end=max(tok_span.end, headtok_span.end))
                     # Build edges
-                    depedge = DependencyEdge(label=spacy_tok.dep_, head=head_ref, child=child_ref)
+                    depedge = DependencyEdge(label=spacy_tok.dep_, head_ref=head_ref, child_ref=child_ref)
                     depedge_ref = AnnotationRef(span=depspan, ref=depedge)
                     child_node.head_edge = depedge_ref
                     head_node.child_edges.append(depedge_ref)
-                    depnodes.append((head_span, head_node))
-                    depnodes.append((child_span, child_node))
+                    if head_span not in depnode_spans:
+                        depnodes.append((head_span, head_node))
+                        depnode_spans.add(head_span)
+
+                    if child_span not in depnode_spans:
+                        depnodes.append((child_span, child_node))
+                        depnode_spans.add(child_span)
                     depedges.append((depspan, depedge))
                 # push dependency graph onto spandex
-                spndx.append(DependencyEdge, *depedges)
-                spndx.append(jemtypes.DependencyNode, *depnodes)
+                spndx.add_annotations(DependencyEdge, *depedges)
+                spndx.add_annotations(DependencyNode, *depnodes)
+
+                dep_parses = []
+                for sent_span, sent in spndx.select(Sentence):
+                    dep_parse = DependencyParse()
+                    dep_node_pairs = [p for p in spndx.select_covered(DependencyNode, sent_span)]
+                    for dep_node_span, dep_node in dep_node_pairs:
+                        print(dep_node.head_edge.ref.head[1], dep_node)
+                        if not dep_parse.root and dep_node.is_root:
+                            # found the root
+                            dep_parse.root = AnnotationRef(dep_node_span, dep_node)
+                        dep_parse.edges.append(dep_node.head_edge)
+                    dep_parses.append((sent_span, dep_parse))
+                    print()
+
+                spndx.add_annotations(DependencyParse, *dep_parses)
+
+                #print(spndx.spanned_text(dep_node_span), dep_node.head_edge.ref.label, spndx.spanned_text(dep_node.head_edge.ref.head.span))
+      
+
 
         if annotation_layers & AnnotationLayers.ENTITY:
-            spndx.append(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
+            spndx.add_annotations(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
 
         if annotation_layers & AnnotationLayers.NOUN_CHUNK:
-            spndx.append(NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
+            spndx.add_annotations(NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
 
 
 class SpacyAnalyzer(AnalysisFunction):
