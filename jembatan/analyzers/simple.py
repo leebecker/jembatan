@@ -3,6 +3,8 @@ from jembatan.core.spandex import Span, Spandex
 from jembatan.typesys import Annotation
 from typing import Pattern
 
+import re
+
 
 class RegexMatchAnnotator(AnalysisFunction):
     """
@@ -36,7 +38,7 @@ class RegexMatchAnnotator(AnalysisFunction):
                 annotation = self.annotation_type()
                 annotation.span = Span(begin=window.begin+mbeg, end=window.begin+mend)
                 annotations.append(annotation)
-        spndx.add_annotations(self.annotation_type, annotations)
+        spndx.add_annotations(self.annotation_type, *annotations)
 
 
 class RegexSplitAnnotator(AnalysisFunction):
@@ -91,4 +93,23 @@ class RegexSplitAnnotator(AnalysisFunction):
                     annotation = self.annotation_type(begin=span.begin, end=span.end)
                     annotations.append(annotation)
 
-        spndx.add_annotations(self.annotation_type, annotations)
+        spndx.add_annotations(self.annotation_type, *annotations)
+
+
+class SimpleTokenizer:
+    def __init__(self, window_type=None):
+        from jembatan.typesys.segmentation import Token
+        self.regex_annotator = RegexMatchAnnotator(re.compile("\w+"), Token, window_type=window_type)
+
+    def process(self, spndx):
+        self.regex_annotator.process(spndx)
+
+
+class SimpleSentenceSegmenter:
+    def __init__(self, window_type=None):
+        from jembatan.typesys.segmentation import Sentence
+        self.regex_annotator = RegexMatchAnnotator(
+            re.compile(re.compile(r'[^\s\.][^\.]+')), Sentence, window_type=window_type)
+
+    def process(self, spndx):
+        self.regex_annotator.process(spndx)
