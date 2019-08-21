@@ -30,11 +30,11 @@ class DependencyEdge(Annotation):
 
     @AnnotationRef.deref_property
     def child(self):
-        return self.head_ref
+        return self.child_ref
 
     @child.setter
     def child(self, node: DependencyNode):
-        self.head_ref = AnnotationRef(node)
+        self.child_ref = AnnotationRef(node)
 
     def to_triple_str(self, spndx):
         head_text = self.head.span.spanned_text(spndx)
