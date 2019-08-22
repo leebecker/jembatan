@@ -245,7 +245,7 @@ class SpacyAnalyzer(AnalysisFunction):
     Spacy analyses are then converted into a common typesystem
     """
 
-    def __init__(self, spacy_pipeline=None):
+    def __init__(self, spacy_pipeline=None, window_type=None):
         """
         @param spacy_pipeline: a spacy model pipeline function which accepts text
                 and returns a spacy document.  Default value of None will trigger
@@ -267,6 +267,8 @@ class SpacyAnalyzer(AnalysisFunction):
             import spacy
             self.spacy_pipeline = spacy.load("en_core_web_sm")
 
+        self.window_type = window_type
+
     def process(self, spndx, **kwargs):
         """
         Args:
@@ -283,17 +285,18 @@ class SpacyAnalyzer(AnalysisFunction):
                 by subsection boundaries  Default of None means to process the
                 full contents of the Spandex.
         """
-        window_type = kwargs.get('window_type', None)
+        #window_type = kwargs.get('window_type', None)
         annotation_layers = kwargs.get('annotation_layers', AnnotationLayers.ALL())
 
-        if not window_type:
+        if not self.window_type:
             # process full document
             spacy_doc = self.spacy_pipeline(spndx.content_string)
             SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers)
         else:
             # process over windows
-            for window_span, window_obj in spndx.select(window_type):
-                window_text = spndx.spanned(window_span)
+            for window in spndx.select(self.window_type):
+                print(window)
+                window_text = spndx.spanned_text(window)
                 spacy_doc = self.spacy_pipeline(window_text)
-                SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers, window_span)
+                SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers, window)
 
