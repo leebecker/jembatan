@@ -172,25 +172,27 @@ class Spandex(object):
         Return all annotations in a layer that are covered by the input span
         """
         layer = self.aliases.get(layer, layer)
+        if layer not in self.annotation_keys:
+            return []
         begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         end = bisect.bisect_left(self.annotation_keys[layer], span.end)
         return self.annotations[layer][begin:end]
 
-    def select_preceeding(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
+    def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that precede the input span
         """
-        layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_left(self.annotation_keys[layer], span.begin)
-        return self.annotations[layer][0:end]
+        precede_span = Span(begin=0, end=span.begin)
+        preceding = self.select_covered(layer, precede_span)
+        return preceding if count is None else preceding[-count:]
 
-    def select_following(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
+    def select_following(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that follow the input span
         """
-        layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_right(self.annotation_keys[layer], span.end)
-        return self.annotations[layer][end:]
+        follow_span = Span(begin=span.end+1, end=len(self.content_string))
+        following = self.select_covered(layer, follow_span)
+        return following if count is None else following[0:count]
 
     def select_all(self, span: Span) -> Iterable[Annotation]:
         """
