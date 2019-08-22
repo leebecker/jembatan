@@ -1,83 +1,11 @@
 from collections import namedtuple
-from functools import total_ordering
-from typing import ClassVar, Iterable
-from dataclasses import dataclass
+from jembatan.core.spandex.typesys_base import Span, Annotation
+from pathlib import Path
+from typing import ClassVar, Iterable, Optional, Union
 
 import bisect
 import itertools
-import math
-
-
-@dataclass
-@total_ordering
-class Span:
-    """
-    A class defining offsets and spans over textual content.  The ordering of these
-    allows for convenient query within a Spandex, it has two named fields
-    `begin` and `end`.
-
-    Examples:
-        # construction
-        span1 = Span(begin=1, end=10)
-        span2 = Span(5, 10)
-    """
-    begin: int = None
-    end: int = None
-
-    @property
-    def topair(self):
-        return (self.begin, self.end)
-
-    @property
-    def isempty(self):
-        return self.end == self.begin
-
-    @property
-    def length(self):
-        return self.end - self.begin
-
-    def contains(self, pos: int):
-        return pos >= self.begin and pos < self.end
-
-    def crosses(self, other: "Span"):
-        return (self.begin < other.begin and self.end < other.end and self.end > other.begin) or \
-            (other.begin < self.begin and other.end < self.end and other.end > self.begin)
-
-    def __eq__(self, other: "Span"):
-        return self.begin == other.begin and self.end == other.end
-
-    def __lt__(self, other: "Span"):
-
-        if other is None:
-            return True
-
-        if not isinstance(other, Span):
-            return NotImplemented
-
-        tuple1 = (
-            self.begin if self.begin is not None else -math.inf,
-            self.end if self.end is not None else -math.inf,
-        )
-
-        tuple2 = (
-            other.begin if other.begin is not None else -math.inf,
-            other.end if other.end is not None else -math.inf,
-        )
-
-        return tuple1 < tuple2
-
-    def __hash__(self):
-        return (self.begin, self.end).__hash__()
-
-    def to_json(self):
-        return self._asdict()
-
-    def spanned_text(self, spndx):
-        return spndx.spanned_text(self)
-
-    @classmethod
-    def from_json(self, obj):
-        return Span(**obj)
+import json as json_
 
 
 class DefaultViewOps(object):
@@ -134,7 +62,6 @@ constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 
 # object is mutable for performant reasons
 class Spandex(object):
-    from jembatan.typesys import Annotation
     """
     Spandex - data structure for holding views of data, its content, and annotations
     """
@@ -270,6 +197,29 @@ class Spandex(object):
         Return all annotations in a view
         """
         return itertools.chain([annotations for layer, annotations in self.annotations.items()])
+
+    def to_json(self, path: Union[str, Path, None] = None, pretty_print: bool = False) -> Optional[str]:
+        """Creates a JSON representation of this Spandex.
+        Args:
+            path: File path, if `None` is provided the result is returned as a string
+            pretty_print: `True` if the resulting JSON should be pretty-printed, else `False`
+        Returns:
+            If `path` is None, then the JSON representation of this Spandex is returned as a string
+        """
+        from jembatan.core.spandex.json import SpandexJsonEncoder
+
+        indent = 4 if pretty_print else None
+        # If `path` is None, then serialize to a string and return it
+        if path is None:
+            return json_.dumps(self, cls=SpandexJsonEncoder, indent=indent)
+        elif isinstance(path, str):
+            with open(path, "w") as f:
+                json_.dump(self, f, cls=SpandexJsonEncoder, indent=indent)
+        elif isinstance(path, Path):
+            with path.open("w") as f:
+                json_.dump(self, f, cls=SpandexJsonEncoder, indent=indent)
+        else:
+            raise TypeError("`path` needs to be one of [str, None, Path], but was <{0}>".format(type(path)))
 
 
 class ViewMappedSpandex(object):

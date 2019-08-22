@@ -1,6 +1,6 @@
 from jembatan.analyzers import spacy as jemspacy
 from jembatan.readers.textreader import text_to_spandex
-from jembatan.core.spandex import json as jemjson
+from jembatan.core.spandex import json as spandex_json
 
 import json
 import jembatan.typesys as jemtypes
@@ -92,11 +92,9 @@ def test_spacy_json_serialization(spacy_pipeline):
 
     spacy_analyzer.process(spndx_in)
 
-    encoder = jemjson.SpandexJsonEncoder()
+    serialized_spndx_str = json.dumps(spndx_in, cls=spandex_json.SpandexJsonEncoder)
 
-    serialized_spndx_str = json.dumps(spndx_in, cls=jemjson.SpandexJsonEncoder)
-
-    spndx_out = json.loads(serialized_spndx_str, cls=jemjson.SpandexJsonDecoder)
+    spndx_out = json.loads(serialized_spndx_str, cls=spandex_json.SpandexJsonDecoder)
 
     sentences_in = spndx_in.select(jemtypes.segmentation.Sentence)
     sentences_out = spndx_out.select(jemtypes.segmentation.Sentence)
