@@ -235,7 +235,8 @@ class SpacyToSpandexUtils:
             spndx.add_annotations(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
 
         if annotation_layers & AnnotationLayers.NOUN_CHUNK:
-            spndx.add_annotations(NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
+            spndx.add_annotations(
+                NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
 
 
 class SpacyAnalyzer(AnalysisFunction):
