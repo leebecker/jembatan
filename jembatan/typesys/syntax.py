@@ -46,20 +46,41 @@ class DependencyEdge(Annotation):
 class DependencyNode(Annotation):
     token: AnnotationRef[Token] = None
 
-    head_edge: AnnotationRef[DependencyEdge] = None
-    child_edges: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
+    head_edge_ref: AnnotationRef[DependencyEdge] = None
+    child_edge_refs: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
+
+    @AnnotationRef.deref_property
+    def head_edge(self):
+        return self.head_edge_ref
+
+    @head_edge.setter
+    def head_edge(self, edge: DependencyEdge):
+        self.head_edge_ref = AnnotationRef(obj=edge)
+
+    def add_child_edge(self, edge: DependencyEdge):
+        self.child_edge_refs.append(AnnotationRef(obj=edge))
+
+    @AnnotationRef.iter_deref_property
+    def child_edges(self):
+        return self.child_edge_refs
 
     @property
     def is_root(self):
-        return self.head_edge and self.head_edge.obj.head == self
+        return self.head_edge and self.head_edge.head == self
 
 
 @dataclass
 class DependencyParse(Annotation):
-    root: AnnotationRef[DependencyNode] = None
-    edges: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
-    nodes: List[AnnotationRef[DependencyNode]] = field(default_factory=list)
+    root_ref: AnnotationRef[DependencyNode] = None
     flavor: str = "unknown"
+
+    @AnnotationRef.deref_property
+    def root(self):
+        return self.root_ref
+
+    @root.setter
+    def root(self, node: DependencyNode):
+        self.root_ref = AnnotationRef(obj=node)
 
 
 @dataclass
@@ -79,16 +100,27 @@ class ConstituencyParse(Annotation):
     """
     Typically Spans the full sentence
     """
-    token: AnnotationRef[Token] = None
+    token_ref: AnnotationRef[Token] = None
     type_: str = None
-    children: List[AnnotationRef[ConstituencyNode]] = field(default_factory=list)
+    children_refs: List[AnnotationRef[ConstituencyNode]] = field(default_factory=list)
+
+    @AnnotationRef.deref_property
+    def token(self):
+        return self.token_ref
+
+    @AnnotationRef.iter_deref_property
+    def children(self):
+        return self.children_refs
+
+    def add_child(self, node: ConstituencyNode):
+        self.children_refs.append(node)
 
     def __iter__(self, depth_first=True) -> Iterator[ConstituencyNode]:
 
         to_process = deque([self.children])
         while to_process:
             node = to_process.popleft()
-            yield node.obj
+            yield node
 
             if depth_first:
                 to_process.extendleft(node.children)

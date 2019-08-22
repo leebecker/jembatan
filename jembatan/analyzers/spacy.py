@@ -205,9 +205,8 @@ class SpacyToSpandexUtils:
                     # Build edges
                     depedge = DependencyEdge(label=spacy_tok.dep_, head_ref=head_ref, child_ref=child_ref)
                     depedge.span = depspan
-                    depedge_ref = AnnotationRef(obj=depedge)
-                    child_node.head_edge = depedge_ref
-                    head_node.child_edges.append(depedge_ref)
+                    child_node.head_edge = depedge
+                    head_node.add_child_edge(depedge)
                     if headtok.span not in depnode_spans:
                         depnodes.append(head_node)
                         depnode_spans.add(head_node.span)
@@ -227,8 +226,7 @@ class SpacyToSpandexUtils:
                     for dep_node in dep_nodes:
                         if not dep_parse.root and dep_node.is_root:
                             # found the root
-                            dep_parse.root = AnnotationRef(dep_node)
-                        dep_parse.edges.append(dep_node.head_edge)
+                            dep_parse.root = dep_node
                     dep_parses.append(dep_parse)
 
                 spndx.add_annotations(DependencyParse, *dep_parses)

@@ -37,10 +37,9 @@ def test_spacy_dep():
     assert len(sentences) == 1
     assert (sentences[0].end - sentences[0].begin) == len(spndx.content_string)
 
-
     # pull out dependency annotations and check parse
-    rootnode = parses[0].root.obj
-    assert rootnode.child_edges[0].obj.head == rootnode
+    rootnode = parses[0].root
+    assert rootnode.child_edges[0].head == rootnode
 
     for expected, node in zip(expected_graph, spndx.select(jemtypes.syntax.DependencyNode)):
         node_text = spndx.spanned_text(node)
@@ -50,16 +49,16 @@ def test_spacy_dep():
         else:
             assert not node.is_root
 
-        relation = node.head_edge.obj.label
-        head_node = node.head_edge.obj.head
+        relation = node.head_edge.label
+        head_node = node.head_edge.head
         head_text = spndx.spanned_text(head_node)
         assert expected == (node_text, relation, head_text)
 
         # ensure we connected the graph both ways
         child_relations = []
         for i, child_relation in enumerate(head_node.child_edges):
-            assert child_relation.obj.head == head_node
-            child_node = child_relation.obj.child
+            assert child_relation.head == head_node
+            child_node = child_relation.child
             child_text = spndx.spanned_text(child_node)
-            child_relations.append((child_text, child_relation.obj.label, head_text))
+            child_relations.append((child_text, child_relation.label, head_text))
         assert expected in child_relations

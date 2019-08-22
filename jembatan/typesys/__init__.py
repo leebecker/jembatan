@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import total_ordering
 from jembatan.core.spandex import Span
-from typing import Generic, TypeVar
+from typing import Generic, Iterable, TypeVar
 import collections
 import math
 import uuid
@@ -51,7 +51,6 @@ class Annotation(Span):
         else:
             return span1 < span2
 
-
     def __hash__(self):
         return (self.id, self.begin, self.end).__hash__()
 
@@ -77,6 +76,28 @@ class AnnotationRef(Generic[T]):
             """
             Run passed in function on object and pull out span and annotation
             """
+
             v = val_func(obj)
+            if v is None:
+                return None
             return v.obj
+        return property(get_ref)
+
+    @classmethod
+    def iter_deref_property(cls, val_func):
+        """
+        Decorator function that will dereference an annotation reference and wrap it in a property.
+        """
+
+        def get_ref(obj: Iterable[AnnotationRef]):
+            """
+            Run passed in function on object and pull out span and annotation
+            """
+
+            annotation_refs = val_func(obj)
+            if annotation_refs is None:
+                return []
+            else:
+                return [v.obj if v is not None else v for v in annotation_refs]
+
         return property(get_ref)
