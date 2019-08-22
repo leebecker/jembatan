@@ -23,7 +23,8 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     "layers": layers,
                     "content_string": view.content_string,
                     "content_mime": view.content_mime,
-                    "_type": "spandex_view"
+                    "_type": "spandex_view",
+                    "view_annotations": self.default(view.view_annotations)
                 }
                 for layer_class, annotation_objs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
@@ -49,11 +50,9 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     '_type': 'annotation_field',
                     'name': f,
                     'value': self.default(getattr(obj, f))
-                } for f in obj.__dataclass_fields__ if f not in ['id'] #['id', 'begin', 'end']
+                } for f in obj.__dataclass_fields__ if f not in ['id']
             ]
             annotation_obj['id'] = str(obj.id)
-            #annotation_obj['begin'] = int(obj.begin)
-            #annotation_obj['end'] = int(obj.end)
 
             return annotation_obj
         elif isinstance(obj, jemtypes.AnnotationRef):
@@ -70,6 +69,8 @@ class SpandexJsonEncoder(json.JSONEncoder):
             return obj
         elif isinstance(obj, numbers.Number):
             return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self.default(v) for k, v in obj.items()}
         elif obj is None:
             return obj
         return json.JSONEncoder.default(self, obj)
