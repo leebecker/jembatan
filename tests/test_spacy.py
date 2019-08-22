@@ -1,9 +1,12 @@
 from jembatan.analyzers import spacy as jemspacy
 from jembatan.readers.textreader import text_to_spandex
+from jembatan.core.spandex import json as jemjson
+
+import json
 import jembatan.typesys as jemtypes
 
 
-def test_spacy_dep():
+def test_spacy_dep(spacy_pipeline):
     text = "John gave the ball to Mary."
     expected_graph = [
         ("John", "nsubj", "gave"),
@@ -20,7 +23,7 @@ def test_spacy_dep():
 
     spndx = text_to_spandex(text)
 
-    spacy_analyzer = jemspacy.SpacyAnalyzer()
+    spacy_analyzer = jemspacy.SpacyAnalyzer(spacy_pipeline=spacy_pipeline)
 
     spacy_analyzer.process(spndx)
 
@@ -62,3 +65,35 @@ def test_spacy_dep():
             child_text = spndx.spanned_text(child_node)
             child_relations.append((child_text, child_relation.label, head_text))
         assert expected in child_relations
+
+
+def test_spacy_json_serialization(spacy_pipeline):
+    text = "John gave the ball to Mary."
+    expected_graph = [
+        ("John", "nsubj", "gave"),
+        ("gave", "ROOT", "gave"),
+        ("the", "det", "ball"),
+        ("ball", "dobj", "gave"),
+        ("to", "dative", "gave"),
+        ("Mary", "pobj", "to"),
+        (".", "punct", "gave")
+    ]
+
+    expected_pos_tags = ['NNP', 'VBD', 'DT', 'NN', 'IN', 'NNP', '.']
+    expected_lemmas = ['john', 'give', 'the', 'ball', 'to', 'mary', '.']
+
+    spndx = text_to_spandex(text)
+
+    spacy_analyzer = jemspacy.SpacyAnalyzer(spacy_pipeline=spacy_pipeline)
+
+    spacy_analyzer.process(spndx)
+
+    encoder = jemjson.SpandexJsonEncoder()
+    
+    x = json.dumps(spndx, cls=jemjson.SpandexJsonEncoder)
+    from pprint import pprint
+    encoder.default(spndx)
+    print(x)
+    assert False
+
+
