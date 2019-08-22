@@ -1,26 +1,30 @@
 # Jembatan
-Jembatan is the word for bridge in Bahasa Indonesia.  It is also a python based framework
-for wrapping and linking the many disparate Natural Language Processing frameworks
-into common data structures, pipelines and type systems for analysis.  Jembatan borrows
-heavily from the `CAS` and `AnalysisEngine` concepts in [UIMA](https://uima.apache.org/),
+Jembatan is a pythonic framework for working with annotations and features in text and natural language processing.  
+It borrows heavily from the `CAS` and `AnalysisEngine` concepts in [UIMA](https://uima.apache.org/),
 `Slab` and `AnalysisFunction` in [Chalk](https://uima.apache.org/) and [Epic](https://github.com/dlwh/epic) as well as the querying and pipeline conveniences found in [uimafit](https://github.com/apache/uima-uimafit) and [ClearTk](https://cleartk.github.io/cleartk/).
+
+## About the name
+The word for bridge in Bahasa Indonesia (aka Indonesian) is *jembatan*, and was chosen to represent how
+this library aims to bridge and span the many disparate natural language processing frameworks into common
+data structures, pipelines and types systems for analysis.
 
 ## License ##
 Jembatan is distributed under [Apache License, version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 ## Goals ##
-Jembatan aims to make analyses of documents accessible through a data structure known as a `Spandex`.  This is essentially a piece of text that contains `Spans`
+Jembatan aims to make analyses of documents accessible through a data structure known as a `Spandex`.  This is essentially a contained for putting Annotation spans over texts.  Text processing can then be thought of as a series of functions that accept and decorate a spandex with
+new annotations.
 
 ## Hello Jembatan ##
 
-This example shows how to quickly run Jembatan's SpacyNLP wrapper on a block of text and display some analyses:
+This example shows how to quickly run Jembatan's [SpacyNLP](http://spacy.io) wrapper on a block of text and display some analyses:
 
 ```python
 import spacy
 
 from spacy.en import English
 from jembatan.core.spandex import (Span, Spandex)
-from jembatan.wrappers.spacy import SpacyAnalyzer
+from jembatan.analyzers.spacy import SpacyAnalyzer
 from jembatan import typesys as jemtypes
 
 
@@ -29,23 +33,22 @@ spndx = Spandex("""Education is all a matter of building bridges.
     When one burns one's bridges, what a very nice fire it makes""")
 
 # initialize and run Spacy on Spandex
+# the SpacyAnalyzer will add annotations for Sentences, Tokens, DependencyParses and more.
 en_nlp = spacy.load("en_core_web_sm")
 spacy_analyzer = SpacyAnalyzer(en_nlp)
 spacy_analyzer(spndx)
 
 # Query and print annotations
-
-for i, (sentspan, sentobj) in enumerate(spndx.select(jemtypes.Sentence)):
-    print("Sentence {:d}: {}".format(i, spndx.spanned(sentspan)))
-    for j, (tokspan, tokobj) in enumerate(spndx.covered(typesys.Token, sentspan)):
-        toktext = spndx.spanned(tokspan)
-        print("\t {:d}\t{}\t{}".format(j, toktext, tokobj.partOfSpeech.pos))
+for i,  sent in enumerate(spndx.select(jemtypes.Sentence)):
+    print("Sentence {:d}: {}".format(i, spndx.spanned(sent)))
+    for j, tok in enumerate(spndx.covered(typesys.Token, sentspan)):
+        toktext = spndx.spanned(tok)
+        print("\t {:d}\t{}\t{}".format(j, toktext, tok.pos))
 ```
 
 Produces the following output:
 ```
 Sentence 0: Education is all a matter of building bridges. 
-    
 	 0	Education	NN
 	 1	is	VBZ
 	 2	all	PDT
@@ -86,7 +89,7 @@ are formed by passing the same Spandex objects to multiple analyzers.
 To get a better idea of these capabilities let's play with the Spandex
 APIs.
 
-```
+```python
 from jembatan.core.spandex import (Span, Spandex)
 
 # Create Spandex initialized with text
@@ -98,13 +101,13 @@ this_span = Span(10, 14)
 
 # print text of up_span.  Should yield 'Up' in both cases
 # method 1
-print(spndx.spanned(up_span))
+print(spndx.spanned_text(up_span))
 
 # method 2
-print(up_span.spanned(spndx))
+print(up_span.spanned_text(spndx))
 
 # print text of this_span
-print(spndx.spanned(this_span)
+print(spndx.spanned_text(this_span)
 ```
 
 ### Typesystem and Annotations
@@ -113,6 +116,7 @@ we may want to know if the Span is a location, place or organization.
 
 Annotations are implemented as python dataclasses and are paired with Spans when getting indexed into a Spandex.
 Jembatan has a basic NLP typesystem defined in `jembatan.typesys` including common  like `Token`, `Sentence`, `DependencyNode`, etc...
+The `Annotation` class inherits from `Span` and so it can be used for any `Spandex` query in the same way you would use a span.
 
 #### Defining your own types
 You can define your own types by inheriting from `jemtypes.Annotation` and decorating it with the `@dataclass`.  Read the [dataclasses documentation](https://docs.python.org/3/library/dataclasses.html) to learn more about defining fields
@@ -128,29 +132,46 @@ class Lycra(jemtypes.Annotation):
 ```
 
 Referring back to the Spandex example above, we can annotate it with an occurence of Lycra as follows:
-```
+```python
+lycra = Lycra(begin=64, end=69, index=0)
 
-lycra_span = Span(64,69)
-lycra = Lycra(index=0)
-
-spndx.append(Lycra, (lycra_span, lycra))
+spndx.add_annotations(Lycra, lycra)
 ```
 
 If you would like to define types that link to other types, we suggest using `jemtypes.AnnotationRef` as it limits
-exposure to heavy recursion during serialization.  A toy example is shown below, a more real world example can be found
-in the definition of `jemtypes.DependencyNode` and `jemtypes.DependencyEdge`.
+exposure to heavy recursion during serialization.  
 
-```
+A toy example is shown below, a more real world example can be found
+in the definition of `jemtypes.syntax.DependencyNode` and `jemtypes.syntax.DependencyEdge`.
+
+```python
 @dataclass
 class HotPants(jemtypes.Annotation):
-    lycra: jemtypes.AnnotationRef[Lycra] = None
+    lycra_ref: jemtypes.AnnotationRef[Lycra] = None
+
+
+    @jemtypes.AnnotationRef.deref_property
+    def lycra(self):
+        return self.lycra_ref
+
+    @lycra.setter
+    def lycra(self, val: Lycra):
+        self.lycra_ref = AnnotationRef(obj=val)
 ```
 
 And to instantiate and populate a HotPants instance
+```python
+    lycra_ref = jemtypes.AnnotationRef(lycra)
+    hot_pants = HotPants(begin=74, end=83, lycra_ref=lycra_ref)
 ```
-    hot_pants_span = Span(74,83)
-    lycra_ref = jemtypes.AnnotationRef(span=hot_pants_span, ref=lyrca)
-    hot_pants = HotPants(lycra=lycra_ref)
+
+Notice that the HotPants class has a getter and setter for a property named lycra.  The `deref_property` decorator provides
+mechanisms to aid in working with `AnnotationRef` fields in your class.  Using the lycra properties the above code can be written:
+```python
+    hot_pants = HotPants(begin=74, end=83)
+    hot_pants.lycra = lycra
+
+    assert hot_pants.lycra == hot_pants.lycra_ref.obj
 ```
 
 ### Analysis Functions
@@ -175,11 +196,10 @@ def lycra_analyzer(spndx, **kwargs):
     # Find matches for regex above
     mentions = []
     for i, m in enumerate(lycra_re.finditer(spndx.content)):
-        span = Span(*m.span())
-        mention = Lycra(index=i)
-        mentions.append((span, mention))
+        mention = Lycra(begin=m[0], end=m[1], index=i)
+        mentions.append(mention)
 
-    # Add layer of annotation to the Spandex
+    # Add layer of lycra annotation to the Spandex
     spndx.add_layer(Lycra, mentions)
 
 # run the Lycra analyzer
@@ -203,9 +223,8 @@ class HotPantsAnalyzer(AnalysisFunction):
         # Find matches for regex above
         mentions = []
         for i, m in enumerate(hotpants_re.finditer(spndx.content)):
-            span = Span(*m.span())
-            mention = HotPants(i)
-            mentions.append((span, mention))
+            mention = HotPants(begin=m[0], end=m[1], index=i)
+            mentions.append(mention)
 
         # Add layer of annotation to the Spandex
         spndx.add_layer(Hotpants, mentions)
@@ -247,23 +266,23 @@ hotpant_spans = spndx.select(HotPants)
 ### Covered / Preceeding / Following
 Covered selects all of a type within a span. 
 ```
-covered_tokens = spndx.covered(jemtypes.Token, Span(0,20))
+covered_tokens = spndx.select_covered(jemtypes.Token, Span(0,20))
 ```
 
 Preceeding selects all of a type before a span.
 ```
-preceding_tokens = spndx.preceeding(jemtypes.Token, Span(0,20))
+preceding_tokens = spndx.select_preceeding(jemtypes.Token, Span(0,20))
 ```
 
-Following selects all of a type before a span.
+Following selects all of a type after a span.
 ```
-preceding_tokens = spndx.preceeding(jemtypes.Token, Span(0,20))
+preceding_tokens = spndx.following(jemtypes.Token, Span(0,20))
 ```
 
-### Spanned
-Spanned will return the text contained in a span.
+### Retrieving annotation texts
+`spanned_text` will return the text contained within the bounds of a span.
 ```
-spndx.spanned(Span(0,20))
+spndx.spanned_text(Span(0,20))
 ```
 
 

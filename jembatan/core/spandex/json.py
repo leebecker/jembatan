@@ -12,7 +12,6 @@ import uuid
 class SpandexJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
-
         if isinstance(obj, spandex.Spandex):
 
             spandex_obj = {"_type": "spandex", 'views': []}
@@ -26,14 +25,9 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     "content_mime": view.content_mime,
                     "_type": "spandex_view"
                 }
-                for layer_class, annotation_pairs in view.annotations.items():
+                for layer_class, annotation_objs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
-                    annotations = [
-                        {
-                            'span': self.default(span),
-                            'annotation': self.default(annotation)
-                        } for span, annotation in annotation_pairs
-                    ]
+                    annotations = [self.default(annotation) for annotation in annotation_objs]
                     layer_obj = {
                         'name': layer_name,
                         'annotations': annotations,
@@ -43,12 +37,6 @@ class SpandexJsonEncoder(json.JSONEncoder):
                 spandex_obj['views'].append(view_obj)
             return spandex_obj
 
-        elif isinstance(obj, spandex.Span):
-            return {
-                '_type': 'spandex_span',
-                'begin': obj.begin,
-                'end': obj.end
-            }
         elif isinstance(obj, Sequence) and not isinstance(obj, str):
             # handle non-string sequences (like lists or iterators)
             return [self.default(i) for i in obj]
@@ -61,19 +49,20 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     '_type': 'annotation_field',
                     'name': f,
                     'value': self.default(getattr(obj, f))
-                } for f in obj.__dataclass_fields__ if f != 'id'
+                } for f in obj.__dataclass_fields__ if f not in ['id'] #['id', 'begin', 'end']
             ]
             annotation_obj['id'] = str(obj.id)
+            #annotation_obj['begin'] = int(obj.begin)
+            #annotation_obj['end'] = int(obj.end)
 
             return annotation_obj
         elif isinstance(obj, jemtypes.AnnotationRef):
             return {
-                "span": self.default(obj.span),
                 "ref": {
-                    "id": self.default(obj.ref.id if obj.ref else None)
+                    "id": self.default(obj.obj.id if obj.obj else None)
                 },
                 "_type": "annotation_ref",
-                "_annotation_type": f"{obj.ref.__class__.__module__}.{obj.ref.__class__.__name__}",
+                "_annotation_type": f"{obj.obj.__class__.__module__}.{obj.obj.__class__.__name__}",
             }
         elif isinstance(obj, uuid.UUID):
             return str(obj)
@@ -136,13 +125,10 @@ class SpandexJsonDecoder(json.JSONDecoder):
                     layer_name = layer['name']
                     module_name, class_name = layer_name.rsplit('.', 1)
                     module = importlib.import_module(module_name)
-                    for span_annotation_obj in layer['annotations']:
-                        annotation_obj = span_annotation_obj['annotation']
+                    for annotation_obj in layer['annotations']:
                         annotation = self.object_hook(annotation_obj)
-                        span_obj = span_annotation_obj['span']
                         annotation_type = getattr(module, class_name)
-                        span = spandex.Span(int(span_obj['begin']), int(span_obj['end']))
-                        self.layer_registry[layer_name][annotation.id] = (span, annotation)
+                        self.layer_registry[layer_name][annotation.id] = annotation
 
                     spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
 
@@ -158,14 +144,19 @@ class SpandexJsonDecoder(json.JSONDecoder):
             annotation_id = uuid.UUID(obj['id'])
             if annotation_id in self.layer_registry[layer_name]:
                 # we've previously encountered the annotation from a reference
-                span, annotation = self.layer_registry[layer_name][annotation_id]
+                annotation = self.layer_registry[layer_name][annotation_id]
             else:
                 annotation = annotation_type(id=annotation_id)
 
             # now fill out fields
             for field in obj['_fields']:
                 name = field['name']
-                if name in annotation_type.__dataclass_fields__:
+                if name in ['begin', 'end']:
+                    # Force begin and end spans to
+                    valstr = field['value']
+                    val = None if valstr == "null" else int(valstr)
+                    setattr(annotation, name, val)
+                elif name in annotation_type.__dataclass_fields__:
                     setattr(annotation, name, self.object_hook(field['value']))
 
             return annotation
@@ -174,13 +165,12 @@ class SpandexJsonDecoder(json.JSONDecoder):
             layer_name = obj['_annotation_type']
             ref_id = uuid.UUID(obj['ref']['id'])
             if ref_id in self.layer_registry[layer_name]:
-                span, annotation = self.layer_registry[layer_name][ref_id]
+                annotation = self.layer_registry[layer_name][ref_id]
             else:
                 module_name, class_name = layer_name.rsplit('.', 1)
                 module = importlib.import_module(module_name)
                 annotation_type = getattr(module, class_name)
-                span = spandex.Span(*obj['span'])
                 annotation = annotation_type(id=ref_id)
-                self.layer_registry[layer_name][ref_id] = (span, annotation)
-            annotation_ref = jemtypes.AnnotationRef(span=span, ref=annotation)
+                self.layer_registry[layer_name][ref_id] = annotation
+            annotation_ref = jemtypes.AnnotationRef(obj=annotation)
             return annotation_ref

@@ -1,68 +1,11 @@
 from collections import namedtuple
-from functools import total_ordering
-from typing import ClassVar, Iterable, Union, Tuple
+from jembatan.core.spandex.typesys_base import Span, Annotation
+from pathlib import Path
+from typing import ClassVar, Iterable, Optional, Union
 
 import bisect
-
-
-@total_ordering
-class Span(namedtuple("Span", ['begin', 'end'])):
-    """
-    A class defining offsets and spans over textual content.  The ordering of these
-    allows for convenient query within a Spandex, it has two named fields
-    `begin` and `end`.
-
-    Examples:
-        # construction
-        span1 = Span(begin=1, end=10)
-        span2 = Span(5, 10)
-    """
-
-    @property
-    def topair(self):
-        return (self.begin, self.end)
-
-    @property
-    def isempty(self):
-        return self.end == self.begin
-
-    @property
-    def length(self):
-        return self.end - self.begin
-
-    def contains(self, pos: int):
-        return pos >= self.begin and pos < self.end
-
-    def crosses(self, other):
-        return (self.begin < other.begin and self.end < other.end and self.end > other.begin) or \
-            (other.begin < self.begin and other.end < self.end and other.end > self.begin)
-
-    def __str__(self):
-        return "Span({0}, {1})".format(self.begin, self.end)
-
-    def __eq__(self, other):
-        return self.begin == other.begin and self.end == other.end
-
-    def __lt__(self, other):
-        if not isinstance(other, Span):
-            return NotImplemented
-        if self.begin == other.begin:
-            return self.end < other.end
-        else:
-            return self.begin < other.begin
-
-    def __hash__(self):
-        return (self.begin, self.end).__hash__()
-
-    def to_json(self):
-        return self._asdict()
-
-    def spanned(self, spndx):
-        return spndx.spanned(self)
-
-    @classmethod
-    def from_json(self, obj):
-        return Span(**obj)
+import itertools
+import json as json_
 
 
 class DefaultViewOps(object):
@@ -119,7 +62,6 @@ constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 
 # object is mutable for performant reasons
 class Spandex(object):
-    from jembatan.typesys import Annotation
     """
     Spandex - data structure for holding views of data, its content, and annotations
     """
@@ -182,69 +124,104 @@ class Spandex(object):
     def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
+    def get_or_create_view(self, viewname: str):
+        try:
+            view = self.get_view(viewname)
+        except KeyError:
+            view.create_view(viewname)
+
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
     def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
         return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
-    def compute_keys(self, layer_annotations: Iterable[Tuple[Span, Annotation]]):
-        return [a[0][0] for a in layer_annotations]
+    def compute_keys(self, layer_annotations: Iterable[Annotation]):
+        return [a.begin for a in layer_annotations]
 
-    def spanned(self, span: Span):
+    def spanned_text(self, span: Span):
         """
         Return text covered by the span
         """
         return self.content_string[span.begin:span.end]
 
-    def append(self, layer: ClassVar[Annotation], *span_obj_pairs: Tuple[Span, Annotation]):
+    def add_annotations(self, layer: ClassVar[Annotation], *annotations: Annotation):
         layer = self.aliases.get(layer, layer)
-        items = sorted(self._annotations.get(layer, []) + list(span_obj_pairs))
+        items = sorted(self._annotations.get(layer, []) + list(annotations))
         keys = self.compute_keys(items)
         self.annotations[layer] = items
         self.annotation_keys[layer] = keys
 
-    def add_layer(self, layer: ClassVar[Annotation], span_obj_pairs: Iterable[Tuple[Span, Annotation]]):
+    def add_layer(self, layer: ClassVar[Annotation], annotations: Iterable[Annotation]):
         layer = self.aliases.get(layer, layer)
-        items = sorted(span_obj_pairs)
-        self.annotations[layer] = items
-        self.annotation_keys[layer] = self.compute_keys(items)
+        self.add_annotations(layer, *annotations)
 
     def remove_layer(self, layer: ClassVar[Annotation]):
         self.annotations.pop(layer)
         self.annotation_keys.pop(layer)
 
-    def select(self, layer: ClassVar[Annotation]):
+    def select(self, layer: ClassVar[Annotation]) -> Iterable[Annotation]:
         """
         Return all annotations in a layer
         """
         layer = self.aliases.get(layer, layer)
         return self.annotations.get(layer, [])
 
-    def covered(self, layer: ClassVar[Annotation], span: Span):
+    def select_covered(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that are covered by the input span
         """
         layer = self.aliases.get(layer, layer)
+        if layer not in self.annotation_keys:
+            return []
         begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
         end = bisect.bisect_left(self.annotation_keys[layer], span.end)
         return self.annotations[layer][begin:end]
 
-    def preceeding(self, layer: ClassVar[Annotation], span: Span):
+    def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that precede the input span
         """
-        layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_left(self.annotation_keys[layer], span.begin)
-        return self.annotations[layer][0:end]
+        precede_span = Span(begin=0, end=span.begin)
+        preceding = self.select_covered(layer, precede_span)
+        return preceding if count is None else preceding[-count:]
 
-    def following(self, layer: ClassVar[Annotation], span: Span):
+    def select_following(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that follow the input span
         """
-        layer = self.aliases.get(layer, layer)
-        end = bisect.bisect_right(self.annotation_keys[layer], span.end)
-        return self.annotations[layer][end:]
+        follow_span = Span(begin=span.end+1, end=len(self.content_string))
+        following = self.select_covered(layer, follow_span)
+        return following if count is None else following[0:count]
+
+    def select_all(self, span: Span) -> Iterable[Annotation]:
+        """
+        Return all annotations in a view
+        """
+        return itertools.chain([annotations for layer, annotations in self.annotations.items()])
+
+    def to_json(self, path: Union[str, Path, None] = None, pretty_print: bool = False) -> Optional[str]:
+        """Creates a JSON representation of this Spandex.
+        Args:
+            path: File path, if `None` is provided the result is returned as a string
+            pretty_print: `True` if the resulting JSON should be pretty-printed, else `False`
+        Returns:
+            If `path` is None, then the JSON representation of this Spandex is returned as a string
+        """
+        from jembatan.core.spandex.json import SpandexJsonEncoder
+
+        indent = 4 if pretty_print else None
+        # If `path` is None, then serialize to a string and return it
+        if path is None:
+            return json_.dumps(self, cls=SpandexJsonEncoder, indent=indent)
+        elif isinstance(path, str):
+            with open(path, "w") as f:
+                json_.dump(self, f, cls=SpandexJsonEncoder, indent=indent)
+        elif isinstance(path, Path):
+            with path.open("w") as f:
+                json_.dump(self, f, cls=SpandexJsonEncoder, indent=indent)
+        else:
+            raise TypeError("`path` needs to be one of [str, None, Path], but was <{0}>".format(type(path)))
 
 
 class ViewMappedSpandex(object):
