@@ -1,10 +1,7 @@
 from bson import ObjectId
 from dataclasses import dataclass
-from jembatan.analyzers import simple
-from jembatan.readers.textreader import text_to_spandex
-from jembatan.typesys.segmentation import Sentence, Token
-from jembatan.typesys import Annotation, AnnotationRef, DocumentAnnotation, SpannedAnnotation
 from jembatan.core.spandex import Span, Spandex
+from jembatan.typesys import Annotation, DocumentAnnotation, SpannedAnnotation
 
 
 @dataclass
@@ -92,6 +89,9 @@ def test_spandex():
         for foo in foos:
             foo.spanned_text(spndx) == '567'
             spndx.spanned_text(foo) == '567'
+
+        foos = spndx.select_covered(FooSpanAnnotation, Span(bar.begin, bar.end))
+        assert len(foos) == 10
 
     blahs = spndx.select(BlahDocAnnotation)
     assert len(blahs) == 2
