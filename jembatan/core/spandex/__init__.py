@@ -1,5 +1,5 @@
 from collections import namedtuple
-from jembatan.core.spandex.typesys_base import Span, Annotation
+from jembatan.core.spandex.typesys_base import Span, Annotation, AnnotationScope, SpannedAnnotation
 from pathlib import Path
 from typing import ClassVar, Iterable, Optional, Union
 
@@ -137,7 +137,7 @@ class Spandex(object):
         return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
     def compute_keys(self, layer_annotations: Iterable[Annotation]):
-        return [a.begin for a in layer_annotations]
+        return [(a.scope, a.begin) if isinstance(a, SpannedAnnotation) else (a.scope, None) for a in layer_annotations]
 
     def spanned_text(self, span: Span):
         """
@@ -174,8 +174,8 @@ class Spandex(object):
         layer = self.aliases.get(layer, layer)
         if layer not in self.annotation_keys:
             return []
-        begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
-        end = bisect.bisect_left(self.annotation_keys[layer], span.end)
+        begin = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.begin))
+        end = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.end))
         return self.annotations[layer][begin:end]
 
     def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:

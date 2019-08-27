@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import Generic, Iterable, TypeVar
+from typing import Generic, Iterable, TypeVar, Union
 
+import enum
 import math
 import uuid
 
@@ -31,20 +32,20 @@ class Span:
         return self.end == self.begin
 
     @property
-    def length(self):
+    def length(self) -> int:
         return self.end - self.begin
 
     def contains(self, pos: int):
         return pos >= self.begin and pos < self.end
 
-    def crosses(self, other: "Span"):
+    def crosses(self, other: "Span") -> bool:
         return (self.begin < other.begin and self.end < other.end and self.end > other.begin) or \
             (other.begin < self.begin and other.end < self.end and other.end > self.begin)
 
-    def __eq__(self, other: "Span"):
+    def __eq__(self, other: "Span") -> bool:
         return self.begin == other.begin and self.end == other.end
 
-    def __lt__(self, other: "Span"):
+    def __lt__(self, other: "Span") -> bool:
 
         if other is None:
             return True
@@ -78,10 +79,55 @@ class Span:
         return Span(**obj)
 
 
+@total_ordering
+class AnnotationScope(enum.Enum):
+    UNKNOWN = "UNKNOWN"
+    DOCUMENT = "DOCUMENT"
+    SPAN = "SPAN"
+
+    def to_json(self):
+        return {
+            '_type': "spandex_annotation_scope",
+            'value': self.value
+        }
+
+    def __lt__(self, other: "AnnotationScope"):
+        ordering = [self.UNKNOWN, self.DOCUMENT, self.SPAN]
+        return ordering.index(self) < ordering.index(other)
+
+    @staticmethod
+    def from_str(label):
+        try:
+            return AnnotationScope[label.upper()]
+        except KeyError:
+            return AnnotationScope.UNKNOWN
+
+
 @dataclass
 @total_ordering
-class Annotation(Span):
+class Annotation:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
+    scope: AnnotationScope = AnnotationScope.UNKNOWN
+
+    def __lt__(self, other: "Annotation"):
+        if not isinstance(other, Annotation):
+            return NotImplemented
+
+        if self.scope == other.scope:
+            return self.id < other.id
+        return self.scope < other.scope
+
+
+@dataclass
+class DocumentAnnotation(Annotation):
+    scope: AnnotationScope.SPAN = AnnotationScope.DOCUMENT
+
+
+@dataclass
+@total_ordering
+class SpannedAnnotation(Annotation, Span):
+
+    scope: AnnotationScope.SPAN = AnnotationScope.SPAN
 
     @property
     def span(self):
@@ -92,16 +138,18 @@ class Annotation(Span):
         self.begin = span.begin
         self.end = span.end
 
-    def __lt__(self, other: Span):
-        if not isinstance(other, Span):
-            return NotImplemented
-
-        span1 = Span(self.begin, self.end)
-        span2 = Span(other.begin, other.end)
-        if isinstance(other, Annotation):
-            return (span1, self.id) < (span2, other.id)
+    def __lt__(self, other: Union[Span, "SpannedAnnotation", Annotation]):
+        if isinstance(other, Span):
+            span1 = Span(self.begin, self.end)
+            span2 = Span(other.begin, other.end)
+            if isinstance(other, SpannedAnnotation):
+                return (span1, self.id) < (span2, other.id)
+            else:
+                return span1 < span2
+        elif isinstance(other, Annotation):
+            return super(Annotation, self).__lt__(other)
         else:
-            return span1 < span2
+            return NotImplemented
 
     def __hash__(self):
         return (self.id, self.begin, self.end).__hash__()

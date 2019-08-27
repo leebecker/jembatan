@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from jembatan.typesys import Annotation
+from jembatan.typesys import SpannedAnnotation
 
 
 @dataclass
-class Entity(Annotation):
+class Entity(SpannedAnnotation):
     name: str = None
     salience: str = None
     label: str = None

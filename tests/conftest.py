@@ -1,5 +1,6 @@
 import pytest
 import spacy
+from jembatan.typesys import Annotation, SpannedAnnotation, AnnotationRef
 
 
 @pytest.yield_fixture(scope="function")

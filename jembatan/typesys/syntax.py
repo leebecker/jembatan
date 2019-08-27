@@ -1,21 +1,21 @@
 from collections import deque
 from dataclasses import dataclass, field
-from jembatan.typesys import Annotation, AnnotationRef
+from jembatan.typesys import SpannedAnnotation, AnnotationRef
 from jembatan.typesys.segmentation import Token
 from typing import List, Iterator
 
 
 # Placeholder before redefining below
-class DependencyNode(Annotation):
+class DependencyNode(SpannedAnnotation):
     pass
 
 
-class ConstituencyNode(Annotation):
+class ConstituencyNode(SpannedAnnotation):
     pass
 
 
 @dataclass
-class DependencyEdge(Annotation):
+class DependencyEdge(SpannedAnnotation):
     label: str = None
     head_ref: AnnotationRef[DependencyNode] = None
     child_ref: AnnotationRef[DependencyNode] = None
@@ -43,7 +43,7 @@ class DependencyEdge(Annotation):
 
 
 @dataclass
-class DependencyNode(Annotation):
+class DependencyNode(SpannedAnnotation):
     token: AnnotationRef[Token] = None
 
     head_edge_ref: AnnotationRef[DependencyEdge] = None
@@ -70,7 +70,7 @@ class DependencyNode(Annotation):
 
 
 @dataclass
-class DependencyParse(Annotation):
+class DependencyParse(SpannedAnnotation):
     root_ref: AnnotationRef[DependencyNode] = None
     flavor: str = "unknown"
 
@@ -84,7 +84,7 @@ class DependencyParse(Annotation):
 
 
 @dataclass
-class ConstituencyNode(Annotation):
+class ConstituencyNode(SpannedAnnotation):
     token: AnnotationRef[Token] = None
     type_: str = None
     parent: AnnotationRef[ConstituencyNode] = None
@@ -96,7 +96,7 @@ class ConstituencyNode(Annotation):
 
 
 @dataclass
-class ConstituencyParse(Annotation):
+class ConstituencyParse(SpannedAnnotation):
     """
     Typically Spans the full sentence
     """

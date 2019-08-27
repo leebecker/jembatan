@@ -9,6 +9,7 @@ import numbers
 import uuid
 
 
+
 class SpandexJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
@@ -24,7 +25,10 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     "content_string": view.content_string,
                     "content_mime": view.content_mime,
                     "_type": "spandex_view",
-                    "view_annotations": self.default(view.view_annotations)
+                    "view_annotations": {
+                        "_type": "spandex_view_annotations",
+                        "annotations": self.default(view.view_annotations)
+                    }
                 }
                 for layer_class, annotation_objs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
@@ -41,7 +45,9 @@ class SpandexJsonEncoder(json.JSONEncoder):
         elif isinstance(obj, Sequence) and not isinstance(obj, str):
             # handle non-string sequences (like lists or iterators)
             return [self.default(i) for i in obj]
-        elif isinstance(obj, jemtypes.Annotation):
+        elif isinstance(obj, jemtypes.AnnotationScope):
+            return str(obj.to_json())
+        elif isinstance(obj, jemtypes.SpannedAnnotation):
             annotation_obj = {}
             annotation_obj['_type'] = "spandex_annotation"
             annotation_obj['_annotation_type'] = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
@@ -50,9 +56,10 @@ class SpandexJsonEncoder(json.JSONEncoder):
                     '_type': 'annotation_field',
                     'name': f,
                     'value': self.default(getattr(obj, f))
-                } for f in obj.__dataclass_fields__ if f not in ['id']
+                } for f in obj.__dataclass_fields__ if f not in ['id', 'scope']
             ]
             annotation_obj['id'] = str(obj.id)
+            annotation_obj['scope'] = obj.scope.value
 
             return annotation_obj
         elif isinstance(obj, jemtypes.AnnotationRef):
@@ -108,15 +115,16 @@ class SpandexJsonDecoder(json.JSONDecoder):
             for view_obj in obj['views']:
                 viewname = view_obj['name']
                 if viewname == spandex.constants.SPANDEX_DEFAULT_VIEW:
+                    view = spndx
                     # default view is the root spandex, so no need to create
                     # just set the content
                     spndx.content_string = view_obj['content_string']
                     spndx.content_mime = view_obj['content_mime']
                 else:
                     # for other views create and set content
-                    spndx.create_view(viewname=viewname,
-                                      content_string=view_obj['content_string'],
-                                      content_mime=view_obj['content_mime'])
+                    view = spndx.create_view(viewname=viewname,
+                                             content_string=view_obj['content_string'],
+                                             content_mime=view_obj['content_mime'])
 
                 # reset layer registry - this is used for lookup by ID when resolving references
                 # in the JSON structure
@@ -131,11 +139,19 @@ class SpandexJsonDecoder(json.JSONDecoder):
                         annotation_type = getattr(module, class_name)
                         self.layer_registry[layer_name][annotation.id] = annotation
 
-                    spndx.add_layer(annotation_type, self.layer_registry[layer_name].values())
+                    view.add_layer(annotation_type, self.layer_registry[layer_name].values())
+
+                view_annotations_obj = view_obj['view_annotations']
+                print("VIEW_ANNOTS", view_annotations_obj)
+                print("VIEW_ANNOTS_THING", self.object_hook(view_annotations_obj))
+                #view.view_annotations = 
 
             # reset layer registry
             self.reset_layers()
             return spndx
+
+        elif obj_type == 'spandex_view_annotations':
+            return self.object_hook(obj['annotations'])
 
         elif obj_type == 'spandex_annotation':
             layer_name = obj['_annotation_type']
@@ -156,6 +172,9 @@ class SpandexJsonDecoder(json.JSONDecoder):
                     # Force begin and end spans to
                     valstr = field['value']
                     val = None if valstr == "null" else int(valstr)
+                    setattr(annotation, name, val)
+                elif name in ['scope']:
+                    val = jemtypes.AnnotationScope.from_str(field['value'])
                     setattr(annotation, name, val)
                 elif name in annotation_type.__dataclass_fields__:
                     setattr(annotation, name, self.object_hook(field['value']))
