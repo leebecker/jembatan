@@ -152,6 +152,9 @@ def test_serialization():
             foo.spanned_text(spndx) == '567'
             spndx.spanned_text(foo) == '567'
 
+            assert isinstance(foo.seq_prop, list)
+            assert isinstance(foo.map_prop, dict)
+
         foos = spndx.select_covered(FooSpanAnnotation, Span(bar.begin, bar.end))
         assert len(foos) == 10
 
