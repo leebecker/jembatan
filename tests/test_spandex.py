@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from jembatan.core.spandex import Span, Spandex
 from jembatan.core.spandex import json as spandex_json
 from jembatan.typesys import Annotation, AnnotationScope, DocumentAnnotation, SpannedAnnotation
-from typing import List
+from typing import Dict, List
 
 import json
 
@@ -12,7 +12,8 @@ class FooSpanAnnotation(SpannedAnnotation):
     prop1: int = 0
     prop2: str = "foo"
     prev: "FooSpanAnnotation" = None
-    double_prev: List["FooSpanAnnotation"] = field(default_factory=list)
+    seq_prop: List["FooSpanAnnotation"] = field(default_factory=list)
+    map_prop: Dict[str, "FooSpanAnnotation"] = field(default_factory=dict)
 
 
 class BarSpanAnnotation(SpannedAnnotation):
@@ -120,8 +121,9 @@ def test_serialization():
         end = i*10 + 8
         foo = FooSpanAnnotation(begin=begin, end=end)
         foo.prev = prev
-        foo.double_prev.append(prev)
-        foo.double_prev.append(prev)
+        foo.seq_prop.append(prev)
+        foo.seq_prop.append(foo)
+        foo.map_prop['prev'] = prev
         spndx.add_annotations(FooSpanAnnotation, foo)
         prev = foo
 
@@ -138,16 +140,22 @@ def test_serialization():
 
     spndx_in = spndx
 
-    print("serializing")
     serialized_spndx_str = json.dumps(spndx_in, cls=spandex_json.SpandexJsonEncoder)
 
-    from pprint import pprint
-    #pprint(json.loads(serialized_spndx_str))
-
+    # deserialize spandex and validate
     spndx_out = json.loads(serialized_spndx_str, cls=spandex_json.SpandexJsonDecoder)
-    pprint(spndx_out.annotations)
+    for bar in spndx_out.select(BarSpanAnnotation):
+        foos = spndx_out.select_covered(FooSpanAnnotation, bar)
+        assert len(foos) == 10
 
-    for foo in spndx_out.select(FooSpanAnnotation):
-        print(foo.prev)
+        for foo in foos:
+            foo.spanned_text(spndx) == '567'
+            spndx.spanned_text(foo) == '567'
+
+        foos = spndx.select_covered(FooSpanAnnotation, Span(bar.begin, bar.end))
+        assert len(foos) == 10
+
+    blahs = spndx.select(BlahDocAnnotation)
+    assert len(blahs) == 2
 
 
