@@ -114,20 +114,34 @@ print(spndx.spanned_text(this_span)
 Spans are useful, but usually we want to attach some sort data to the Span.  For example in named entity recognition
 we may want to know if the Span is a location, place or organization.
 
-Annotations are implemented as python dataclasses and are paired with Spans when getting indexed into a Spandex.
+The Jembatan mechanism for attached data to a spandex comes by way of Annotations.  You can think of an Annotation as
+a data struct associated with some scope over a spandex view.  Under the hood, Annotations extend native python 3 dataclasses, which
+provides a useful convention for authoring new annotation types and for getting/setting an instance's properties.
+
 Jembatan has a basic NLP typesystem defined in `jembatan.typesys` including common  like `Token`, `Sentence`, `DependencyNode`, etc...
-The `Annotation` class inherits from `Span` and so it can be used for any `Spandex` query in the same way you would use a span.
+
+#### Annotation Scope
+Jembatan has defined three base classess that correspond to different annotation scopes.  `Annotation` is the base class and has scope `UNKNOWN`.
+Most type systems will not inherit from Annotation.
+
+The `SpannedAnnotation` class inherits from `Span` and `Annotation` and has scope `SPAN`.  Like `Span`, `SpannedAnnotation` has both `begin`
+and `end` properties.  This makes it useful for passing into any of the spandex queries/methods that accept a `Span` argument.  
+For most tasks the majority of types will inherit from `SpannedAnnotation`
+
+The `DocumentAnnotation` has scope `DOCUMENT`, and is useful for defining document level properties without requiring a `begin` and `end` field.
+
+### Predefined Types
+and are paired with Spans when getting indexed into a Spandex.
 
 #### Defining your own types
-You can define your own types by inheriting from `jemtypes.Annotation` and decorating it with the `@dataclass`.  Read the [dataclasses documentation](https://docs.python.org/3/library/dataclasses.html) to learn more about defining fields
-with defaults and type hints.
+You can define your own types by inheriting from `jemtypes.SpannedAnnotation` or `jemtypes.DocumentAnnotation`.  Read the [dataclasses documentation](https://docs.python.org/3/library/dataclasses.html) to learn more about defining fields with defaults and type hints.  The serialization methods
+only support definition of fields as combination of primitive types, lists, dicts, or other Annotation types.
 
 ```
 from dataclasses import dataclass
 import jembatan.typesys as jemtypes
 
-@dataclass
-class Lycra(jemtypes.Annotation):
+class Lycra(jemtypes.SpannedAnnotation):
     index: int = 0
 ```
 
@@ -138,40 +152,20 @@ lycra = Lycra(begin=64, end=69, index=0)
 spndx.add_annotations(Lycra, lycra)
 ```
 
-If you would like to define types that link to other types, we suggest using `jemtypes.AnnotationRef` as it limits
-exposure to heavy recursion during serialization.  
+Annotations can refer to other annotations.  This mechanism is used create tree and graph structures common to many linguistic representations.
 
-A toy example is shown below, a more real world example can be found
-in the definition of `jemtypes.syntax.DependencyNode` and `jemtypes.syntax.DependencyEdge`.
+A toy example is shown below, a more real world example can be found in the definition of 
+`jemtypes.syntax.DependencyNode` and `jemtypes.syntax.DependencyEdge`.
 
 ```python
 @dataclass
 class HotPants(jemtypes.Annotation):
-    lycra_ref: jemtypes.AnnotationRef[Lycra] = None
-
-
-    @jemtypes.AnnotationRef.deref_property
-    def lycra(self):
-        return self.lycra_ref
-
-    @lycra.setter
-    def lycra(self, val: Lycra):
-        self.lycra_ref = AnnotationRef(obj=val)
+    lycra: jemtypes.[Lycra] = None
 ```
 
 And to instantiate and populate a HotPants instance
 ```python
-    lycra_ref = jemtypes.AnnotationRef(lycra)
-    hot_pants = HotPants(begin=74, end=83, lycra_ref=lycra_ref)
-```
-
-Notice that the HotPants class has a getter and setter for a property named lycra.  The `deref_property` decorator provides
-mechanisms to aid in working with `AnnotationRef` fields in your class.  Using the lycra properties the above code can be written:
-```python
-    hot_pants = HotPants(begin=74, end=83)
-    hot_pants.lycra = lycra
-
-    assert hot_pants.lycra == hot_pants.lycra_ref.obj
+    hot_pants = HotPants(begin=74, end=83, lycra=lycra)
 ```
 
 ### Analysis Functions
