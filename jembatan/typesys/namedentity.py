@@ -1,7 +1,7 @@
-from jembatan.typesys import Annotation
+from jembatan.typesys import SpannedAnnotation
 
 
-class NamedEntity(Annotation):
+class NamedEntity(SpannedAnnotation):
     """
     Named entities refer e.g. to persons, locations, organizations and so on. They often consist of multiple tokens.
 
