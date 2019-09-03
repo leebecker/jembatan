@@ -122,6 +122,44 @@ class AnnotationMeta(type):
 
         return property(scope)
 
+    @classmethod
+    def encode_field_val_for_repr(metacls, val):
+        """
+        Function for encoding dataclass field values
+        """
+        # FIXME put this in metaclass because Annotation should not know about dataclasses inherently
+        if isinstance(val, Annotation):
+            return f"{val.__class__.__name__}(id={val.id})"
+        elif isinstance(val, Sequence) and not isinstance(val, str):
+            return '[' + ', '.join([metacls.encode_field_val_for_repr(v) for v in val]) + ']'
+        elif isinstance(val, Mapping):
+            key_val_str = ', '.join(f"{k}: {metacls.encode_field_val_for_repr(v)}" for k, v in val.items())
+            return '{' + key_val_str + '}'
+        else:
+            return repr(val)
+
+    @classmethod
+    def create_repr_fn(metacls):
+
+        def __repr__(self):
+            # Compute special encoding. Not using out of the box __repr__ that comes with
+            special_field_val_pairs = (
+                (fieldname, getattr(self, fieldname)) for fieldname in self._SPECIAL_FIELDS
+            )
+            field_val_pairs = (
+                (fieldname, getattr(self, fieldname)) for fieldname in self.__dataclass_fields__
+                if fieldname not in self._SPECIAL_FIELDS
+            )
+            encoded_field_val_pairs = (
+                (f, metacls.encode_field_val_for_repr(v)) for (f, v) in
+                itertools.chain(special_field_val_pairs, field_val_pairs)
+            )
+            fields_str = ', '.join(f"{f}={v}" for (f, v) in encoded_field_val_pairs)
+
+            return f"{self.__class__.__name__}({fields_str})"
+
+        return __repr__
+
     def __new__(metacls, name, bases, namespace, **kwds):
         # Create a new class type
         newclass = super().__new__(metacls, name, bases, dict(namespace))
@@ -130,6 +168,14 @@ class AnnotationMeta(type):
         if 'scope' in kwds:
             setattr(newclass, '__post_init__', AnnotationMeta.create_post(kwds['scope']))
             setattr(newclass, 'scope', AnnotationMeta.create_scope_property())
+
+        # set the __repr__ function so we don't get recursion
+        # _SPECIAL_FIELDS are fields that get first priority in display
+        special_fields = kwds.get('special_fields', None)
+        print(name, "SPECIAL", special_fields)
+        if special_fields:
+            setattr(newclass, '__repr__', AnnotationMeta.create_repr_fn())
+            setattr(newclass, '_SPECIAL_FIELDS', special_fields)
 
         # now wrap the new class in a dataclass
         dataclass(repr=False)(newclass)
@@ -142,11 +188,14 @@ def generate_annotation_id():
 
 
 @total_ordering
-class Annotation(metaclass=AnnotationMeta, scope=AnnotationScope.UNKNOWN):
+class Annotation(metaclass=AnnotationMeta,
+                 scope=AnnotationScope.UNKNOWN,
+                 special_fields=['id']):
+    """
+    Base class for defining Annotations.  In most cases a new type will not inherit from
+    this one
+    """
     id: str = field(default_factory=generate_annotation_id)
-
-    # Define fields that get special status in the __repr__ command
-    _SPECIAL_FIELDS = ['id']
 
     def __lt__(self, other: "Annotation"):
         if not isinstance(other, Annotation):
@@ -160,48 +209,16 @@ class Annotation(metaclass=AnnotationMeta, scope=AnnotationScope.UNKNOWN):
     def index_key(self):
         return (self.scope, None)
 
-    def encode_field_val_for_repr(self, val):
-        """
-        Function for encoding dataclass field values
-        """
-        # FIXME put this in metaclass because Annotation should not know about dataclasses inherently
-        if isinstance(val, Annotation):
-            return f"{val.__class__.__name__}(id={val.id})"
-        elif isinstance(val, Sequence) and not isinstance(val, str):
-            return '[' + ', '.join([self.encode_field_val_for_repr(v) for v in val]) + ']'
-        elif isinstance(val, Mapping):
-            key_val_str = ', '.join(f"{k}: {self.encode_field_val_for_repr(v)}" for k, v in val.items())
-            return '{' + key_val_str + '}'
-        else:
-            return repr(val)
-
-    def __repr__(self):
-        # Compute special encoding. Not using out of the box __repr__ that comes with
-        special_field_val_pairs = (
-            (fieldname, getattr(self, fieldname)) for fieldname in self._SPECIAL_FIELDS
-        )
-        field_val_pairs = (
-            (fieldname, getattr(self, fieldname)) for fieldname in self.__dataclass_fields__
-            if fieldname not in self._SPECIAL_FIELDS
-        )
-        encoded_field_val_pairs = (
-            (f, self.encode_field_val_for_repr(v)) for (f, v) in
-            itertools.chain(special_field_val_pairs, field_val_pairs)
-        )
-        fields_str = ', '.join(f"{f}={v}" for (f, v) in encoded_field_val_pairs)
-
-        return f"{self.__class__.__name__}({fields_str})"
-
 
 class DocumentAnnotation(Annotation, metaclass=AnnotationMeta, scope=AnnotationScope.DOCUMENT):
     pass
 
 
 @total_ordering
-class SpannedAnnotation(Annotation, Span, metaclass=AnnotationMeta, scope=AnnotationScope.SPAN):
-
-    # Define fields that get special status in the __repr__ command
-    _SPECIAL_FIELDS = ['id', 'begin', 'end']
+class SpannedAnnotation(Annotation, Span,
+                        metaclass=AnnotationMeta,
+                        scope=AnnotationScope.SPAN,
+                        special_fields=['id', 'begin', 'end']):
 
     @property
     def span(self):
