@@ -70,7 +70,6 @@ class Spandex(object):
         self._content_string = content_string
         self._content_mime = content_mime
         self._annotations = {}
-        self._view_annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
         self.viewops = DefaultViewOps()
@@ -117,10 +116,6 @@ class Spandex(object):
     def annotations(self):
         return self._annotations
 
-    @property
-    def view_annotations(self):
-        return self._view_annotations
-
     def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
@@ -137,7 +132,7 @@ class Spandex(object):
         return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
     def compute_keys(self, layer_annotations: Iterable[Annotation]):
-        return [(a.scope, a.begin) if isinstance(a, SpannedAnnotation) else (a.scope, None) for a in layer_annotations]
+        return [a.index_key for a in layer_annotations]
 
     def spanned_text(self, span: Span):
         """

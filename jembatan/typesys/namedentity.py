@@ -1,8 +1,6 @@
-from dataclasses import dataclass
 from jembatan.typesys import Annotation
 
 
-@dataclass
 class NamedEntity(Annotation):
     """
     Named entities refer e.g. to persons, locations, organizations and so on. They often consist of multiple tokens.

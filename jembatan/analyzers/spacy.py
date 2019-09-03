@@ -7,7 +7,6 @@ import functools
 from enum import auto, Flag
 from jembatan.core.spandex import (Span, Spandex)
 from jembatan.core.af import AnalysisFunction
-from jembatan.typesys import AnnotationRef
 from jembatan.typesys.chunking import NounChunk, Entity
 from jembatan.typesys.segmentation import (Document, Sentence, Token)
 from jembatan.typesys.syntax import (DependencyEdge, DependencyNode, DependencyParse)
@@ -194,19 +193,17 @@ class SpacyToSpandexUtils:
                 for (tok, spacy_tok) in word_toks:
                     headtok = all_toks[spacy_tok.head.i]
                     head_node = span_to_nodes[headtok.span]
-                    head_ref = AnnotationRef(obj=head_node)
                     child_span = tok.span
                     child_node = span_to_nodes[child_span]
-                    child_ref = AnnotationRef(obj=child_node)
 
                     # get span for full dependency
                     depspan = Span(begin=min(tok.begin, headtok.begin),
                                    end=max(tok.end, headtok.end))
                     # Build edges
-                    depedge = DependencyEdge(label=spacy_tok.dep_, head_ref=head_ref, child_ref=child_ref)
+                    depedge = DependencyEdge(label=spacy_tok.dep_, head=head_node, child=child_node)
                     depedge.span = depspan
                     child_node.head_edge = depedge
-                    head_node.add_child_edge(depedge)
+                    head_node.child_edges.append(depedge)
                     if headtok.span not in depnode_spans:
                         depnodes.append(head_node)
                         depnode_spans.add(head_node.span)

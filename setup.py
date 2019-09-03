@@ -9,7 +9,8 @@ setup(name='jembatan',
       packages=find_packages(),
       install_requires=[
           "spacy",
-          "dataclasses"
+          "dataclasses",
+          "typing_inspect"
       ],
       test_require=[
           "pytest"
