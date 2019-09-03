@@ -1,7 +1,7 @@
 from collections import deque
-from dataclasses import dataclass, field, Field
+from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import get_type_hints, Any, Generic, Iterable, List, Mapping, Optional, Sequence, TypeVar, Union
+from typing import get_type_hints, Any, Generic, Iterable, List, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 import bson
 import enum
@@ -28,18 +28,18 @@ class Span:
     end: int = None
 
     @property
-    def topair(self):
+    def topair(self) -> Tuple[int, int]:
         return (self.begin, self.end)
 
     @property
-    def isempty(self):
+    def isempty(self) -> bool:
         return self.end == self.begin
 
     @property
     def length(self) -> int:
         return self.end - self.begin
 
-    def contains(self, pos: int):
+    def contains(self, pos: int) -> bool:
         return pos >= self.begin and pos < self.end
 
     def crosses(self, other: "Span") -> bool:
@@ -72,14 +72,14 @@ class Span:
     def __hash__(self):
         return (self.begin, self.end).__hash__()
 
-    def to_json(self):
+    def to_json(self) -> dict:
         return self._asdict()
 
-    def spanned_text(self, spndx: "Spandex"):
+    def spanned_text(self, spndx: "Spandex") -> str:
         return spndx.spanned_text(self)
 
     @classmethod
-    def from_json(self, obj):
+    def from_json(self, obj: dict) -> "Span":
         return Span(**obj)
 
 
@@ -111,7 +111,7 @@ class AnnotationMeta(type):
     """
 
     @classmethod
-    def create_post_fn(metacls, scope):
+    def create_post_fn(metacls, scope: str):
         """
         Factory function for creating a __post_init__ method that is used in conjunction w/ dataclass __init__
         """
@@ -204,12 +204,12 @@ class Annotation(metaclass=AnnotationMeta,
                  scope=AnnotationScope.UNKNOWN,
                  special_fields=['id']):
     """
-    Base class for defining Annotations.  In most cases a new type will not inherit from
-    this one
+    Base class for defining Annotations.  In most cases a new type will not inherit from this one
     """
+    # define base ID field
     id: str = field(default_factory=generate_annotation_id)
 
-    def __lt__(self, other: "Annotation"):
+    def __lt__(self, other: "Annotation") -> bool:
         if not isinstance(other, Annotation):
             return NotImplemented
 
@@ -218,7 +218,7 @@ class Annotation(metaclass=AnnotationMeta,
         return self.scope < other.scope
 
     @property
-    def index_key(self):
+    def index_key(self) -> Tuple[AnnotationScope, Union[int, None]]:
         """
         value used for indexing within Spandex layers
         """
@@ -251,7 +251,7 @@ class SpannedAnnotation(Annotation, Span,
         self.begin = span.begin
         self.end = span.end
 
-    def __lt__(self, other: Union[Span, "SpannedAnnotation", Annotation]):
+    def __lt__(self, other: Union[Span, "SpannedAnnotation", Annotation]) -> bool:
         if isinstance(other, Span):
             span1 = Span(self.begin, self.end)
             span2 = Span(other.begin, other.end)
@@ -268,7 +268,7 @@ class SpannedAnnotation(Annotation, Span,
         return (self.id, self.begin, self.end).__hash__()
 
     @property
-    def index_key(self):
+    def index_key(self) -> Tuple[AnnotationScope, Union[int, None]]:
         return (self.scope, self.begin)
 
 
