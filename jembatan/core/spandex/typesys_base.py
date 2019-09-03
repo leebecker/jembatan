@@ -115,6 +115,13 @@ class AnnotationMeta(type):
             self._scope = scope
         return __post_init__
 
+    @classmethod
+    def create_scope_property(metacls):
+        def scope(self):
+            return self._scope
+
+        return property(scope)
+
     def __new__(metacls, name, bases, namespace, **kwds):
         # Create a new class type
         newclass = super().__new__(metacls, name, bases, dict(namespace))
@@ -122,6 +129,7 @@ class AnnotationMeta(type):
         # attach a post init method to initialize scope
         if 'scope' in kwds:
             setattr(newclass, '__post_init__', AnnotationMeta.create_post(kwds['scope']))
+            setattr(newclass, 'scope', AnnotationMeta.create_scope_property())
 
         # now wrap the new class in a dataclass
         dataclass(repr=False)(newclass)
@@ -139,11 +147,6 @@ class Annotation(metaclass=AnnotationMeta, scope=AnnotationScope.UNKNOWN):
 
     # Define fields that get special status in the __repr__ command
     _SPECIAL_FIELDS = ['id']
-
-    @property
-    def scope(self) -> AnnotationScope:
-        # FIXME should this go in the metaclass?
-        return self._scope
 
     def __lt__(self, other: "Annotation"):
         if not isinstance(other, Annotation):
