@@ -106,17 +106,24 @@ class AnnotationScope(enum.Enum):
 
 class AnnotationMeta(type):
     """
-    Metaclass used to define special construction of Annotation types.
+    Metaclass used to define special construction of Annotation types.  In most cases
+    this should not be used outside of this module
     """
 
     @classmethod
-    def create_post(metacls, scope):
+    def create_post_fn(metacls, scope):
+        """
+        Factory function for creating a __post_init__ method that is used in conjunction w/ dataclass __init__
+        """
         def __post_init__(self):
             self._scope = scope
         return __post_init__
 
     @classmethod
     def create_scope_property(metacls):
+        """
+        Factory function for creating a scope property
+        """
         def scope(self):
             return self._scope
 
@@ -125,7 +132,7 @@ class AnnotationMeta(type):
     @classmethod
     def encode_field_val_for_repr(metacls, val):
         """
-        Function for encoding dataclass field values
+        Function for encoding dataclass field values.  This is used by the __repr__ function created below
         """
         # FIXME put this in metaclass because Annotation should not know about dataclasses inherently
         if isinstance(val, Annotation):
@@ -140,9 +147,13 @@ class AnnotationMeta(type):
 
     @classmethod
     def create_repr_fn(metacls):
-
+        """
+        Factory function for creating a __repr__ method in the new class.  This essentially does the
+        equivalent encoding provided by dataclass, but stubs out annotations linked from other annotations
+        to avoid recursion
+        """
         def __repr__(self):
-            # Compute special encoding. Not using out of the box __repr__ that comes with
+            # Compute special encoding. Not using out of the box __repr__ that comes with dataclass
             special_field_val_pairs = (
                 (fieldname, getattr(self, fieldname)) for fieldname in self._SPECIAL_FIELDS
             )
@@ -166,18 +177,19 @@ class AnnotationMeta(type):
 
         # attach a post init method to initialize scope
         if 'scope' in kwds:
-            setattr(newclass, '__post_init__', AnnotationMeta.create_post(kwds['scope']))
+            setattr(newclass, '__post_init__', AnnotationMeta.create_post_fn(kwds['scope']))
             setattr(newclass, 'scope', AnnotationMeta.create_scope_property())
 
         # set the __repr__ function so we don't get recursion
         # _SPECIAL_FIELDS are fields that get first priority in display
         special_fields = kwds.get('special_fields', None)
-        print(name, "SPECIAL", special_fields)
         if special_fields:
+            # if special fields is not specified we will assume it and the __repr__ function are
+            # inherited from a parent class
             setattr(newclass, '__repr__', AnnotationMeta.create_repr_fn())
             setattr(newclass, '_SPECIAL_FIELDS', special_fields)
 
-        # now wrap the new class in a dataclass
+        # lastly wrap the new class in a dataclass
         dataclass(repr=False)(newclass)
         return newclass
 
@@ -207,10 +219,16 @@ class Annotation(metaclass=AnnotationMeta,
 
     @property
     def index_key(self):
+        """
+        value used for indexing within Spandex layers
+        """
         return (self.scope, None)
 
 
 class DocumentAnnotation(Annotation, metaclass=AnnotationMeta, scope=AnnotationScope.DOCUMENT):
+    """
+    Base class for defining document level annotations.
+    """
     pass
 
 
@@ -219,6 +237,10 @@ class SpannedAnnotation(Annotation, Span,
                         metaclass=AnnotationMeta,
                         scope=AnnotationScope.SPAN,
                         special_fields=['id', 'begin', 'end']):
+    """
+    Base class for defining span-level annotations.  Derive from this any time you have a scope
+    that is a character offset
+    """
 
     @property
     def span(self):
@@ -256,6 +278,10 @@ T = T = TypeVar('T')
 
 @dataclass(repr=False)
 class AnnotationRef(Generic[T]):
+    """
+    Class for wrapping Annotations as a reference. These have disappeared from type definitions as their need has
+    been obfuscated with better serialization.  At present the json spandex serializers still rely on this class
+    """
     obj: T = None
 
     def __repr__(self):
@@ -343,8 +369,6 @@ def type_match(src_type, tgt_type):
 
             match = typing_inspect.get_origin(Union[src_origin, tgt_origin]) != Union
 
-            #match = src_origin == tgt_origin
-
     if not match:
         return False
 
@@ -362,115 +386,3 @@ def type_match(src_type, tgt_type):
             return False
 
     return True
-
-
-
-def _create_annot_ref(annot: Annotation) -> Optional[AnnotationRef]:
-
-    """ Convert annotation into AnnotationRef """
-    return AnnotationRef(obj=v) if v is not None else v
-
-
-def _create_deref_prop(attribute_name):
-    """
-    Given an attribute name, this will create a convenience property for getting
-    and setting the underlying annotation for the reference
-    """
-    @property
-    def prop(self) -> Annotation:
-        ref = getattr(self, attribute_name)
-        return ref.obj if ref is not None else ref
-
-    @prop.setter
-    def prop(self, v: Annotation) -> None:
-        setattr(self, attribute_name, _create_annot_ref(v))
-
-    prop.__doc__ = f"""
-    Dereference convenience property for getting/setting contents of {attribute_name} AnnotationRef
-    """
-    return prop
-
-
-def _create_list_deref_prop(attribute_name):
-    """
-    Given an attribute name, this will create a convenience property for getting
-    and setting the underlying annotation for the reference
-    """
-    @property
-    def prop(self) -> Annotation:
-        refs = getattr(self, attribute_name)
-
-        if refs is None:
-            return []
-        else:
-            return [ref.obj if ref is not None else ref for ref in refs]
-
-    @prop.setter
-    def prop(self, values: List[Annotation]) -> None:
-        if values is not None:
-            setattr(self, attribute_name, [_create_annot_ref(v) for v in values])
-        else:
-
-            setattr(self, attribute_name, [])
-
-    prop.__doc__ = f"""
-    Dereference convenience property for getting/setting List of AnnotationRefs in {attribute_name}
-    """
-    return prop
-
-
-def make_it_annotation(cls):
-    """
-    Decorator that coverts class into an annotation.
-
-
-    Examples:
-
-    @SpandexAnnotation
-    class MyAnnotation:
-        value: int = 1
-
-        previous_annot_ref: AnnotationRef["MyAnnotation"] = None
-    """
-
-    # parse out class definition
-    # look for annotations of type AnnotationRef
-    ref_suffix = '_ref'
-    ref_plural_suffix = '_refs'
-    for attribute_name, attribute in get_type_hints(cls).items():
-        print(attribute)
-
-        try:
-            attr = getattr(cls, attribute_name)
-        except AttributeError:
-            raise AttributeError(
-                f"Annotation field {attribute_name} does not have a valid default value.  "
-                "Refer to :func:`~dataclasses.field` for more information.")
-        prop_name = None
-        prop_is_list = False
-        if attribute == AnnotationRef:
-            if isinstance(attr, Field) and 'deref_prop_name' in attr.metadata:
-                # If field metadata specifies property name, use that
-                prop_name = attr.metadata['deref_prop_name']
-            elif attribute_name.endswith(ref_suffix):
-                # Back off to convention of naming by dropping ref
-                prop_name = attribute_name[:-len(ref_suffix)]
-
-        elif _get_args_chain(attribute)[0:2] == [List, AnnotationRef]:
-            prop_is_list = True
-            if isinstance(attr, Field) and 'deref_prop_name' in attr.metadata:
-                # If field metadata specifies property name, use that
-                prop_name = attr.metadata['deref_prop_name']
-            elif attribute_name.endswith(ref_plural_suffix):
-                # Back off to convention of naming by dropping ref
-                prop_name = attribute_name[:-len(ref_plural_suffix)]
-
-        if prop_name:
-            create_func = _create_list_deref_prop if prop_is_list else _create_deref_prop
-            prop = create_func(attribute_name)
-            setattr(cls, prop_name, prop)
-
-    # convert it into a dataclass
-    dataclass(cls)
-
-    return cls
