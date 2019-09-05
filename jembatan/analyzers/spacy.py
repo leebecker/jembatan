@@ -292,7 +292,6 @@ class SpacyAnalyzer(AnalysisFunction):
         else:
             # process over windows
             for window in spndx.select(self.window_type):
-                print(window)
                 window_text = spndx.spanned_text(window)
                 spacy_doc = self.spacy_pipeline(window_text)
                 SpacyToSpandexUtils.spacy_to_spandex(spacy_doc, spndx, annotation_layers, window)
