@@ -26,7 +26,7 @@ class DefaultViewOps(object):
 
         return view
 
-    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
+    def create_view(self, spndx: "Spandex", viewname: str, content_string: str=None, content_mime: str=None):
         root = spndx if not spndx.root else spndx.root
 
         new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, root=root, viewname=viewname)
@@ -124,6 +124,7 @@ class Spandex(object):
             view = self.get_view(viewname)
         except KeyError:
             view.create_view(viewname)
+        return view
 
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
