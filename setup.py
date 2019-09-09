@@ -10,6 +10,7 @@ setup(name='jembatan',
       install_requires=[
           "spacy",
           "dataclasses",
+          "dataclasses-json",
           "typing_inspect"
       ],
       test_require=[

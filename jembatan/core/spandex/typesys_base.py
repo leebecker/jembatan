@@ -1,5 +1,7 @@
 from collections import deque
 from dataclasses import dataclass, field
+from dataclasses_json import dataclass_json
+
 from functools import total_ordering
 from typing import get_type_hints, Any, Generic, Iterable, List, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
@@ -12,6 +14,7 @@ import typing_inspect
 
 
 @dataclass(repr=False)
+@dataclass_json
 @total_ordering
 class Span:
     """
