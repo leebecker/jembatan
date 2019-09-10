@@ -1,4 +1,4 @@
-from typing import AnyStr, Iterable
+from typing import Iterable
 
 from jembatan.core.spandex import Spandex
 
@@ -11,8 +11,8 @@ class SimplePipeline:
     @classmethod
     def iterate(cls, collection: Iterable[Spandex], stages: Iterable):
         """
-        Process CAS collection
-        Iterator over processed CASes.  Useful if you want to work with the CAS objects beyond just
+        Process Spandex collection
+        Iterator over processed Spandexes.  Useful if you want to work with the Spandex objects beyond just
         processing the pipeline.  This is one way to instrument collection of results for evaluation
         without putting it into your pipeline.
 
@@ -34,15 +34,15 @@ class SimplePipeline:
     @classmethod
     def run(cls, collection: Iterable[Spandex], stages: Iterable):
         """
-        Simply executes the pipeline
+        Executes a linear pipeline of stages and runs collection_process_complete on those stages
         """
-        for cas in cls.iterate(collection, stages):
+        for spndx in cls.iterate(collection, stages):
             pass
 
         for stage in stages:
             # allow annotators to do cleanup
             try:
                 getattr(stage, 'collect_process_complete')
+                stage.collection_process_complete()
             except AttributeError:
-                return
-            stage.collection_process_complete()
+                pass
