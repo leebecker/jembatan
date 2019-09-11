@@ -1,40 +1,23 @@
 from collections import deque
-from dataclasses import dataclass, field
-from jembatan.typesys import Annotation, AnnotationRef
+from dataclasses import field
+from jembatan.typesys import SpannedAnnotation
 from jembatan.typesys.segmentation import Token
 from typing import List, Iterator
 
 
 # Placeholder before redefining below
-class DependencyNode(Annotation):
+class DependencyNode(SpannedAnnotation):
     pass
 
 
-class ConstituencyNode(Annotation):
+class ConstituencyNode(SpannedAnnotation):
     pass
 
 
-@dataclass
-class DependencyEdge(Annotation):
+class DependencyEdge(SpannedAnnotation):
     label: str = None
-    head_ref: AnnotationRef[DependencyNode] = None
-    child_ref: AnnotationRef[DependencyNode] = None
-
-    @AnnotationRef.deref_property
-    def head(self):
-        return self.head_ref
-
-    @head.setter
-    def head(self, node: DependencyNode):
-        self.head_ref = AnnotationRef(node)
-
-    @AnnotationRef.deref_property
-    def child(self):
-        return self.child_ref
-
-    @child.setter
-    def child(self, node: DependencyNode):
-        self.child_ref = AnnotationRef(node)
+    head: DependencyNode = None
+    child: DependencyNode = None
 
     def to_triple_str(self, spndx):
         head_text = self.head.span.spanned_text(spndx)
@@ -42,78 +25,43 @@ class DependencyEdge(Annotation):
         return f"{self.label}({child_text},{head_text})"
 
 
-@dataclass
-class DependencyNode(Annotation):
-    token: AnnotationRef[Token] = None
+class DependencyNode(SpannedAnnotation):
+    token: Token = None
 
-    head_edge_ref: AnnotationRef[DependencyEdge] = None
-    child_edge_refs: List[AnnotationRef[DependencyEdge]] = field(default_factory=list)
-
-    @AnnotationRef.deref_property
-    def head_edge(self):
-        return self.head_edge_ref
-
-    @head_edge.setter
-    def head_edge(self, edge: DependencyEdge):
-        self.head_edge_ref = AnnotationRef(obj=edge)
-
-    def add_child_edge(self, edge: DependencyEdge):
-        self.child_edge_refs.append(AnnotationRef(obj=edge))
-
-    @AnnotationRef.iter_deref_property
-    def child_edges(self):
-        return self.child_edge_refs
+    head_edge: DependencyEdge = None
+    child_edges: List[DependencyEdge] = field(default_factory=list)
 
     @property
     def is_root(self):
         return self.head_edge and self.head_edge.head == self
 
 
-@dataclass
-class DependencyParse(Annotation):
-    root_ref: AnnotationRef[DependencyNode] = None
+class DependencyParse(SpannedAnnotation):
+    root: DependencyNode = None
     flavor: str = "unknown"
 
-    @AnnotationRef.deref_property
-    def root(self):
-        return self.root_ref
 
-    @root.setter
-    def root(self, node: DependencyNode):
-        self.root_ref = AnnotationRef(obj=node)
-
-
-@dataclass
-class ConstituencyNode(Annotation):
-    token: AnnotationRef[Token] = None
+class ConstituencyNode(SpannedAnnotation):
+    token: Token = None
     type_: str = None
-    parent: AnnotationRef[ConstituencyNode] = None
-    children: List[AnnotationRef[ConstituencyNode]] = field(default_factory=list)
+    parent: ConstituencyNode = None
+    children: List[ConstituencyNode] = field(default_factory=list)
 
     @property
     def is_leaf(self):
         return not self.children
 
 
-@dataclass
-class ConstituencyParse(Annotation):
+class ConstituencyParse(SpannedAnnotation):
     """
     Typically Spans the full sentence
     """
-    token_ref: AnnotationRef[Token] = None
+    token: Token = None
     type_: str = None
-    children_refs: List[AnnotationRef[ConstituencyNode]] = field(default_factory=list)
-
-    @AnnotationRef.deref_property
-    def token(self):
-        return self.token_ref
-
-    @AnnotationRef.iter_deref_property
-    def children(self):
-        return self.children_refs
+    children: List[ConstituencyNode] = field(default_factory=list)
 
     def add_child(self, node: ConstituencyNode):
-        self.children_refs.append(node)
+        self.children.append(node)
 
     def __iter__(self, depth_first=True) -> Iterator[ConstituencyNode]:
 

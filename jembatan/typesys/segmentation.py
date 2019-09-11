@@ -1,36 +1,29 @@
-from dataclasses import dataclass
-from jembatan.typesys import Annotation
+from jembatan.typesys import SpannedAnnotation
 from typing import AnyStr
 
 
-@dataclass
-class Document(Annotation):
+class Document(SpannedAnnotation):
     """ Top level document type """
     pass
 
 
-@dataclass
-class Block(Annotation):
+class Block(SpannedAnnotation):
     tag: AnyStr = None
 
 
-@dataclass
-class Heading(Annotation):
+class Heading(SpannedAnnotation):
     tag: AnyStr = None
 
 
-@dataclass
-class Paragraph(Annotation):
+class Paragraph(SpannedAnnotation):
     pass
 
 
-@dataclass
-class Sentence(Annotation):
+class Sentence(SpannedAnnotation):
     pass
 
 
-@dataclass
-class Token(Annotation):
+class Token(SpannedAnnotation):
     lemma: AnyStr = None
     stem: AnyStr = None
     pos: AnyStr = None

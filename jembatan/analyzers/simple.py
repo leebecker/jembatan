@@ -73,7 +73,7 @@ class RegexSplitAnnotator(AnalysisFunction):
 
             if not matches:
                 # no split found so make the whole window paragraph
-                span = Span(begin=window.begin+0, end=window.begin+len(spndx.content))
+                span = Span(begin=window.begin+0, end=window.begin+len(spndx.content_string))
                 annotation = self.annotation_type(begin=span.begin, end=span.end)
                 annotations.append(annotation)
             else:

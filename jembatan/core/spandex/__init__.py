@@ -1,5 +1,5 @@
 from collections import namedtuple
-from jembatan.core.spandex.typesys_base import Span, Annotation
+from jembatan.core.spandex.typesys_base import Span, Annotation, AnnotationScope, SpannedAnnotation
 from pathlib import Path
 from typing import ClassVar, Iterable, Optional, Union
 
@@ -26,7 +26,7 @@ class DefaultViewOps(object):
 
         return view
 
-    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
+    def create_view(self, spndx: "Spandex", viewname: str, content_string: str=None, content_mime: str=None):
         root = spndx if not spndx.root else spndx.root
 
         new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, root=root, viewname=viewname)
@@ -70,7 +70,6 @@ class Spandex(object):
         self._content_string = content_string
         self._content_mime = content_mime
         self._annotations = {}
-        self._view_annotations = {}
         self.annotation_keys = {}
         self.aliases = {}
         self.viewops = DefaultViewOps()
@@ -117,10 +116,6 @@ class Spandex(object):
     def annotations(self):
         return self._annotations
 
-    @property
-    def view_annotations(self):
-        return self._view_annotations
-
     def get_view(self, viewname: str):
         return self.viewops.get_view(self, viewname)
 
@@ -129,6 +124,7 @@ class Spandex(object):
             view = self.get_view(viewname)
         except KeyError:
             view.create_view(viewname)
+        return view
 
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
@@ -137,7 +133,7 @@ class Spandex(object):
         return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
     def compute_keys(self, layer_annotations: Iterable[Annotation]):
-        return [a.begin for a in layer_annotations]
+        return [a.index_key for a in layer_annotations]
 
     def spanned_text(self, span: Span):
         """
@@ -174,8 +170,8 @@ class Spandex(object):
         layer = self.aliases.get(layer, layer)
         if layer not in self.annotation_keys:
             return []
-        begin = bisect.bisect_left(self.annotation_keys[layer], span.begin)
-        end = bisect.bisect_left(self.annotation_keys[layer], span.end)
+        begin = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.begin))
+        end = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.end))
         return self.annotations[layer][begin:end]
 
     def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
