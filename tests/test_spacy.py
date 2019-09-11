@@ -18,6 +18,8 @@ def compare_dep_annotations(spndx, dep_parse, expected_graph, expected_pos_tags,
         relation = node.head_edge.label
         head_node = node.head_edge.head
         head_text = spndx.spanned_text(head_node)
+        print("actual", node_text, relation, head_text)
+        print("expected", expected)
         assert expected == (node_text, relation, head_text)
 
         # ensure we connected the graph both ways
@@ -37,13 +39,13 @@ def test_spacy_dep(spacy_pipeline):
         ("gave", "ROOT", "gave"),
         ("the", "det", "ball"),
         ("ball", "dobj", "gave"),
-        ("to", "dative", "gave"),
+        ("to", "prep", "gave"),
         ("Mary", "pobj", "to"),
         (".", "punct", "gave")
     ]
 
     expected_pos_tags = ['NNP', 'VBD', 'DT', 'NN', 'IN', 'NNP', '.']
-    expected_lemmas = ['john', 'give', 'the', 'ball', 'to', 'mary', '.']
+    expected_lemmas = ['John', 'give', 'the', 'ball', 'to', 'Mary', '.']
 
     spndx = text_to_spandex(text)
 
@@ -78,7 +80,7 @@ def test_spacy_json_serialization(spacy_pipeline):
         ("gave", "ROOT", "gave"),
         ("the", "det", "ball"),
         ("ball", "dobj", "gave"),
-        ("to", "dative", "gave"),
+        ("to", "prep", "gave"),
         ("Mary", "pobj", "to"),
         (".", "punct", "gave")
     ]

@@ -8,12 +8,16 @@ setup(name='jembatan',
       license='Apache 2.0',
       packages=find_packages(),
       install_requires=[
+          "bson",
           "spacy",
-          "dataclasses",
           "dataclasses-json",
           "typing_inspect"
       ],
       test_require=[
           "pytest"
       ],
+      extras_require={
+          ":python_version<'3.7'": ["dataclasses"]
+
+      },
       zip_safe=False)
