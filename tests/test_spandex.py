@@ -21,6 +21,14 @@ class BarSpanAnnotation(SpannedAnnotation):
     prop_b: str = "b"
 
 
+class FooOneExtended(FooSpanAnnotation):
+    pass
+
+
+class FooTwoExtended(FooSpanAnnotation):
+    pass
+
+
 class BlahDocAnnotation(DocumentAnnotation):
     prop_c: int = 42
 
@@ -71,6 +79,24 @@ def test_typesys():
 
     for expected, actual in zip(expected_order, actual_order):
         assert expected.id == actual.id
+
+
+def test_typesys_inheritance():
+
+    content_string = ''.join(str(s % 10) for s in range(500))
+    spndx = Spandex(content_string=content_string)
+
+    foo = FooSpanAnnotation(begin=100, end=200)
+    foo_one = FooOneExtended(begin=200, end=300)
+    foo_two = FooTwoExtended(begin=300, end=400)
+    bar = BarSpanAnnotation(begin=105, end=205)
+
+    spndx.add_annotations(foo, foo_one, foo_two, bar)
+
+    assert len(spndx.select_covered(FooSpanAnnotation, Span(0, 500))) == 3
+    assert len(spndx.select_covered(FooOneExtended, Span(0, 500))) == 1
+    assert len(spndx.select_covered(FooTwoExtended, Span(0, 500))) == 1
+    assert len(spndx.select_covered(BarSpanAnnotation, Span(0, 500))) == 1
 
 
 def test_spandex():
