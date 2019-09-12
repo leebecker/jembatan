@@ -49,14 +49,19 @@ class SpandexJsonEncoder(json.JSONEncoder):
             spandex_obj = {"_type": "spandex", 'views': []}
 
             for viewname, view in obj.views.items():
-                layers = []
+
+                annotations = [self.encode_obj(annotation, inside_field) for annotation in view.annotations]
+
                 view_obj = {
                     "name": viewname,
-                    "layers": layers,
+                    "annotations": annotations,
                     "content_string": view.content_string,
                     "content_mime": view.content_mime,
                     "_type": "spandex_view"
                 }
+
+
+                """
                 for layer_class, annotation_objs in view.annotations.items():
                     layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
                     annotations = [self.encode_obj(annotation, inside_field) for annotation in annotation_objs]
@@ -66,6 +71,7 @@ class SpandexJsonEncoder(json.JSONEncoder):
                         '_type': 'spandex_layer'
                     }
                     layers.append(layer_obj)
+                """
                 spandex_obj['views'].append(view_obj)
             return spandex_obj
 
@@ -107,7 +113,7 @@ class SpandexJsonDecoder(json.JSONDecoder):
 
     def reset_layers(self):
         # FIXME not multithreaded in any way
-        self.layer_registry = defaultdict(dict)
+        self.layer_registry = dict()
 
     def decode(self, s):
         # If this is not overridden it does weird things where it attempts to serialize things piecemeal
@@ -125,19 +131,19 @@ class SpandexJsonDecoder(json.JSONDecoder):
             if obj_type == 'annotation_ref':
                 # The serialized JSON has an annotation ref, instead of returning an annotation ref
                 # return the annotation itself
-                layer_name = fieldval_obj['_annotation_type']
+                annotation_type = fieldval_obj['_annotation_type']
                 ref_id = fieldval_obj['ref']['id']
-                if ref_id in self.layer_registry[layer_name]:
+                if ref_id in self.layer_registry:
                     # annotation exists already
-                    annotation = self.layer_registry[layer_name][ref_id]
+                    annotation = self.layer_registry[ref_id]
                 else:
                     # annotation does not exist, go ahead and create it,
                     # later this should get populated in other layers
-                    module_name, class_name = layer_name.rsplit('.', 1)
+                    module_name, class_name = annotation_type.rsplit('.', 1)
                     module = importlib.import_module(module_name)
                     annotation_type = getattr(module, class_name)
                     annotation = annotation_type(id=ref_id)
-                    self.layer_registry[layer_name][ref_id] = annotation
+                    self.layer_registry[ref_id] = annotation
                 return annotation
             else:
                 # This is likely a nested dictionary so decode as needed
@@ -149,15 +155,15 @@ class SpandexJsonDecoder(json.JSONDecoder):
             return fieldval_obj
 
     def decode_annotation(self, annotation_obj, inside_field=False):
-        layer_name = annotation_obj['_annotation_type']
-        module_name, class_name = layer_name.rsplit('.', 1)
+        annotation_type_str = annotation_obj['_annotation_type']
+        module_name, class_name = annotation_type_str.rsplit('.', 1)
         module = importlib.import_module(module_name)
         annotation_type = getattr(module, class_name)
         annotation_id = annotation_obj.get('id', None)
 
-        if annotation_id in self.layer_registry[layer_name]:
+        if annotation_id in self.layer_registry:
             # we've previously encountered the annotation from a reference
-            annotation = self.layer_registry[layer_name][annotation_id]
+            annotation = self.layer_registry[annotation_id]
         else:
             annotation = annotation_type()
             annotation.id = annotation_id
@@ -197,24 +203,29 @@ class SpandexJsonDecoder(json.JSONDecoder):
 
                 # reset layer registry - this is used for lookup by ID when resolving references
                 # in the JSON structure
+                # FIXME - this should be revisited with respect to having all objects in memory
+                # versus those indexed by the view
                 self.reset_layers()
-                for layer in view_obj['layers']:
-                    # add annotations layer by layer
-                    layer_name = layer['name']
-                    module_name, class_name = layer_name.rsplit('.', 1)
-                    module = importlib.import_module(module_name)
-                    for annotation_obj in layer['annotations']:
-                        annotation_obj_type = annotation_obj.get("_type", None)
 
-                        # FIXME raise exception or print error
-                        assert annotation_obj_type == "spandex_annotation"
+                annotations = []
 
-                        if annotation_obj:
-                            annotation = self.decode_annotation(annotation_obj)
-                            annotation_type = getattr(module, class_name)
-                            self.layer_registry[layer_name][annotation.id] = annotation
+                for annotation_obj in view_obj['annotations']:
+                    annotation_obj_type = annotation_obj.get("_type", None)
 
-                    view.add_layer(annotation_type, self.layer_registry[layer_name].values())
+                    # FIXME raise exception or print error
+                    assert annotation_obj_type == "spandex_annotation"
+
+                    if annotation_obj:
+                        annotation_type = annotation_obj['_annotation_type']
+
+                        module_name, class_name = annotation_type.rsplit('.', 1)
+                        module = importlib.import_module(module_name)
+                        annotation = self.decode_annotation(annotation_obj)
+                        annotation_type = getattr(module, class_name)
+                        self.layer_registry[annotation.id] = annotation
+                        annotations.append(annotation)
+
+                view.add_annotations(*annotations)
 
             # reset layer registry
             self.reset_layers()

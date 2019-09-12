@@ -168,11 +168,10 @@ class SpacyToSpandexUtils:
                 doc_span = Span(0, len(spndx.content_string))
                 doc = Document(begin=doc_span.begin, end=doc_span.end)
 
-            spndx.add_annotations(Document, doc)
+            spndx.add_annotations(doc)
 
         if annotation_layers & AnnotationLayers.SENTENCE:
             spndx.add_annotations(
-                Sentence,
                 *[SpacyToSpandexUtils.convert_sentence(s, window_span) for s in spacy_doc.sents])
 
         # Extract tokens and dependency parse
@@ -181,7 +180,7 @@ class SpacyToSpandexUtils:
             all_toks = [SpacyToSpandexUtils.convert_token(t, window_span) for t in spacy_toks]
             word_toks = [(tok, spacy_tok) for (tok, spacy_tok) in zip(all_toks, spacy_toks) if not spacy_tok.is_space]
             toks = [tok for (tok, spacy_tok) in word_toks]
-            spndx.add_annotations(Token, *toks)
+            spndx.add_annotations(*toks)
 
             if annotation_layers & AnnotationLayers.DEPPARSE:
                 # Pull out dependency graphs
@@ -213,8 +212,8 @@ class SpacyToSpandexUtils:
                         depnode_spans.add(child_span)
                     depedges.append(depedge)
                 # push dependency graph onto spandex
-                spndx.add_annotations(DependencyEdge, *depedges)
-                spndx.add_annotations(DependencyNode, *depnodes)
+                spndx.add_annotations(*depedges)
+                spndx.add_annotations(*depnodes)
 
                 dep_parses = []
                 for sent in spndx.select(Sentence):
@@ -226,14 +225,14 @@ class SpacyToSpandexUtils:
                             dep_parse.root = dep_node
                     dep_parses.append(dep_parse)
 
-                spndx.add_annotations(DependencyParse, *dep_parses)
+                spndx.add_annotations(*dep_parses)
 
         if annotation_layers & AnnotationLayers.ENTITY:
-            spndx.add_annotations(Entity, *[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
+            spndx.add_annotations(*[SpacyToSpandexUtils.convert_entity(e, window_span) for e in spacy_doc.ents])
 
         if annotation_layers & AnnotationLayers.NOUN_CHUNK:
             spndx.add_annotations(
-                NounChunk, *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
+                *[SpacyToSpandexUtils.convert_noun_chunk(n, window_span) for n in spacy_doc.noun_chunks])
 
 
 class SpacyAnalyzer(AnalysisFunction):

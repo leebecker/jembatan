@@ -216,16 +216,14 @@ class Annotation(metaclass=AnnotationMeta,
         if not isinstance(other, Annotation):
             return NotImplemented
 
-        if self.scope == other.scope:
-            return self.id < other.id
-        return self.scope < other.scope
+        return (self.index_key < other.index_key)
 
     @property
     def index_key(self) -> Tuple[AnnotationScope, Union[int, None]]:
         """
         value used for indexing within Spandex layers
         """
-        return (self.scope, None)
+        return (self.scope,)
 
 
 class DocumentAnnotation(Annotation, metaclass=AnnotationMeta, scope=AnnotationScope.DOCUMENT):

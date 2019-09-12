@@ -69,9 +69,8 @@ class Spandex(object):
     def __init__(self, content_string: str=None, content_mime: str = None, root=None, viewname=None):
         self._content_string = content_string
         self._content_mime = content_mime
-        self._annotations = {}
-        self.annotation_keys = {}
-        self.aliases = {}
+        self._annotations = []
+        self._annotation_keys = []
         self.viewops = DefaultViewOps()
 
         if not root:
@@ -141,38 +140,28 @@ class Spandex(object):
         """
         return self.content_string[span.begin:span.end]
 
-    def add_annotations(self, layer: ClassVar[Annotation], *annotations: Annotation):
-        layer = self.aliases.get(layer, layer)
-        items = sorted(self._annotations.get(layer, []) + list(annotations))
+    def add_annotations(self, *annotations: Annotation):
+        items = sorted(self._annotations + list(annotations))
         keys = self.compute_keys(items)
-        self.annotations[layer] = items
-        self.annotation_keys[layer] = keys
+        self._annotations = items
+        self._annotation_keys = keys
 
-    def add_layer(self, layer: ClassVar[Annotation], annotations: Iterable[Annotation]):
-        layer = self.aliases.get(layer, layer)
-        self.add_annotations(layer, *annotations)
-
-    def remove_layer(self, layer: ClassVar[Annotation]):
-        self.annotations.pop(layer)
-        self.annotation_keys.pop(layer)
+    def index_annotations(self, *annotations: Annotation):
+        return self.add_annotations(annotations)
 
     def select(self, layer: ClassVar[Annotation]) -> Iterable[Annotation]:
         """
         Return all annotations in a layer
         """
-        layer = self.aliases.get(layer, layer)
-        return self.annotations.get(layer, [])
+        return [a for a in self.annotations if isinstance(a, layer)]
 
     def select_covered(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
         """
         Return all annotations in a layer that are covered by the input span
         """
-        layer = self.aliases.get(layer, layer)
-        if layer not in self.annotation_keys:
-            return []
-        begin = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.begin))
-        end = bisect.bisect_left(self.annotation_keys[layer], (AnnotationScope.SPAN, span.end))
-        return self.annotations[layer][begin:end]
+        begin = bisect.bisect_left(self._annotation_keys, (AnnotationScope.SPAN, span.begin))
+        end = bisect.bisect_left(self._annotation_keys, (AnnotationScope.SPAN, span.end))
+        return [a for a in self.annotations[begin:end] if isinstance(a, layer)]
 
     def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
@@ -194,7 +183,8 @@ class Spandex(object):
         """
         Return all annotations in a view
         """
-        return itertools.chain([annotations for layer, annotations in self.annotations.items()])
+        #return itertools.chain([annotations for layer, annotations in self.annotations.items()])
+        return self.annotations
 
     def to_json(self, path: Union[str, Path, None] = None, pretty_print: bool = False) -> Optional[str]:
         """Creates a JSON representation of this Spandex.

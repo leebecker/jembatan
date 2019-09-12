@@ -38,7 +38,7 @@ class RegexMatchAnnotator(AnalysisFunction):
                 annotation = self.annotation_type()
                 annotation.span = Span(begin=window.begin+mbeg, end=window.begin+mend)
                 annotations.append(annotation)
-        spndx.add_annotations(self.annotation_type, *annotations)
+        spndx.add_annotations(*annotations)
 
 
 class RegexSplitAnnotator(AnalysisFunction):
@@ -93,7 +93,7 @@ class RegexSplitAnnotator(AnalysisFunction):
                     annotation = self.annotation_type(begin=span.begin, end=span.end)
                     annotations.append(annotation)
 
-        spndx.add_annotations(self.annotation_type, *annotations)
+        spndx.add_annotations(*annotations)
 
 
 class SimpleTokenizer:

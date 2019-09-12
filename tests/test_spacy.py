@@ -102,6 +102,8 @@ def test_spacy_json_serialization(spacy_pipeline):
     sentences_out = spndx_out.select(jemtypes.segmentation.Sentence)
     assert len(sentences_in) == len(sentences_out)
 
+    assert len(spndx_in.annotations) == len(spndx_out.annotations)
+
     for sentence_in, sentence_out in zip(sentences_in, sentences_out):
         tokens_in = spndx_in.select_covered(jemtypes.segmentation.Token, sentence_in)
         tokens_out = spndx_out.select_covered(jemtypes.segmentation.Token, sentence_out)

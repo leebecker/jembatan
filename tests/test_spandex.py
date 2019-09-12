@@ -81,30 +81,36 @@ def test_spandex():
     for i in range(50):
         begin = i * 10 + 5
         end = i*10 + 8
-        spndx.add_annotations(FooSpanAnnotation, FooSpanAnnotation(begin=begin, end=end))
+        spndx.add_annotations(FooSpanAnnotation(begin=begin, end=end))
 
     # make Bars cover spans of 100 characters
     for i in range(5):
         begin = i * 100
         end = begin + 100
-        spndx.add_annotations(BarSpanAnnotation, BarSpanAnnotation(begin=begin, end=end))
+        spndx.add_annotations(BarSpanAnnotation(begin=begin, end=end))
 
     # make blah Document level annotations
     blah1 = BlahDocAnnotation()
     blah2 = BlahDocAnnotation()
-    spndx.add_annotations(BlahDocAnnotation, blah1)
-    spndx.add_annotations(BlahDocAnnotation, blah2)
+    spndx.add_annotations(blah1)
+    spndx.add_annotations(blah2)
 
-    for bar in spndx.select(BarSpanAnnotation):
+    for i, bar in enumerate(spndx.select(BarSpanAnnotation)):
         foos = spndx.select_covered(FooSpanAnnotation, bar)
         assert len(foos) == 10
 
         for foo in foos:
-            foo.spanned_text(spndx) == '567'
-            spndx.spanned_text(foo) == '567'
+            assert foo.spanned_text(spndx) == '567'
+            assert spndx.spanned_text(foo) == '567'
 
         foos = spndx.select_covered(FooSpanAnnotation, Span(bar.begin, bar.end))
         assert len(foos) == 10
+
+        preceding_foos = spndx.select_preceding(FooSpanAnnotation, bar)
+        assert len(preceding_foos) == i * 10
+
+        following_foos = spndx.select_following(FooSpanAnnotation, bar)
+        assert len(following_foos) == 40 - (i * 10)
 
     blahs = spndx.select(BlahDocAnnotation)
     assert len(blahs) == 2
@@ -124,19 +130,19 @@ def test_serialization():
         foo.seq_prop.append(prev)
         foo.seq_prop.append(foo)
         foo.map_prop['prev'] = prev
-        spndx.add_annotations(FooSpanAnnotation, foo)
+        spndx.add_annotations(foo)
         prev = foo
 
     # make Bars cover spans of 100 characters
     for i in range(5):
         begin = i * 100
         end = begin + 100
-        spndx.add_annotations(BarSpanAnnotation, BarSpanAnnotation(begin=begin, end=end))
+        spndx.add_annotations(BarSpanAnnotation(begin=begin, end=end))
 
     # make blah Document level annotations
     blah1 = BlahDocAnnotation()
     blah2 = BlahDocAnnotation()
-    spndx.add_annotations(BlahDocAnnotation, blah1, blah2)
+    spndx.add_annotations(blah1, blah2)
 
     spndx_in = spndx
 

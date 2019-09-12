@@ -149,7 +149,7 @@ Referring back to the Spandex example above, we can annotate it with an occurenc
 ```python
 lycra = Lycra(begin=64, end=69, index=0)
 
-spndx.add_annotations(Lycra, lycra)
+spndx.add_annotations(lycra)
 ```
 
 Annotations can refer to other annotations.  This mechanism is used create tree and graph structures common to many linguistic representations.
