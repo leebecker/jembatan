@@ -1,14 +1,17 @@
-from collections import namedtuple
-from jembatan.core.spandex.typesys_base import Span, Annotation, AnnotationScope, SpannedAnnotation
-from pathlib import Path
-from typing import ClassVar, Iterable, Optional, Union
-
 import bisect
-import itertools
 import json as json_
+
+from collections import namedtuple
+from jembatan.core.spandex.typesys_base import Span, Annotation, AnnotationScope
+from pathlib import Path
+from typing import ClassVar, Dict, Iterable, Optional, Union
 
 
 class DefaultViewOps(object):
+    """
+    Defines behaviors we can perform on a view.  This is intended to be used for the root (default) Spandex that
+    governs all views
+    """
 
     def __init__(self):
         pass
@@ -37,19 +40,26 @@ class DefaultViewOps(object):
 
 
 class ViewMappedViewOps(DefaultViewOps):
-    """ Overrides ViewOps by resolving view names by way of a view_map
     """
+    Overrides ViewOps by resolving view names by way of a view_map
 
-    def __init__(self, view_map):
-        self.view_map = view_map
+    This is the mechanism that allows us to say, run this analysis that normally
+    runs on view X and instead run it on view Y.
+    """
+    def __init__(self, view_map: Dict[str, str]=None):
+        self.view_map = view_map or {}
 
-    def get_view(self, spndx, viewname):
-        mapped_viewname = self.view_map[viewname]
+    def get_view(self, spndx: "Spandex", viewname: str):
+        # Attempt to map view from given view map.  If none exists, pass through the unmappped view name
+        mapped_viewname = self.view_map.get(viewname, viewname)
         return super(ViewMappedViewOps, self).get_view(spndx, mapped_viewname)
 
-    def create_view(self, spndx, viewname: str, content_string: str=None, content_mime: str=None):
+    def create_view(self, root_spndx: "Spandex", viewname: str, content_string: str=None, content_mime: str=None):
+        """
+
+        """
         mapped_viewname = self.view_map[viewname]
-        return super(ViewMappedViewOps, self).create_view(spndx,
+        return super(ViewMappedViewOps, self).create_view(root_spndx,
                                                           viewname=mapped_viewname,
                                                           content_string=content_string,
                                                           content_mime=content_mime)
@@ -183,7 +193,6 @@ class Spandex(object):
         """
         Return all annotations in a view
         """
-        #return itertools.chain([annotations for layer, annotations in self.annotations.items()])
         return self.annotations
 
     def to_json(self, path: Union[str, Path, None] = None, pretty_print: bool = False) -> Optional[str]:

@@ -1,3 +1,4 @@
+from typing import Dict, Optional, Union
 import jembatan.core.spandex as spandex
 
 class AnalysisFunction(object):
@@ -80,23 +81,23 @@ class AggregateAnalysisFunction(AnalysisFunction):
         self.view_maps = []
         self.af_kwargs_list = []
 
-    def add(self, annotator, view_map=None, **kwargs):
-        """ Add annotator to pipeline
+    def add(self, analysis_func: AnalysisFunction, view_map:Optional[Dict[str, str]]=None, **kwargs):
+        """ Add analysis function to pipeline
 
         Args:
-            annotator (:obj:) a function or an object with
+            analysis func(:obj:) a function or an object with
                 '__call__(spndx, **kwargs)' implemented.
-                An annotator accepts and processes a Spandex object
+                An analysis function accepts and processes a Spandex object
                 view_map (dict, optional): A dictionary mapping between the 
-                views used internally by the annotator and the views present in 
+                views used internally by the analysis function and the views present in 
                 the spandex.  Defaults of None indicates not to do mapping.
 
-            **kwargs: extra parameters to pass to annotator.process() to allow 
+            **kwargs: extra parameters to pass to analysis function.process() to allow 
                 for change in runtime behavior separate from remapping of view 
                 names.  These are intended to allow for reuse of components 
                 without need to initialize a new object.
         """
-        self.annotators.append(annotator)
+        self.annotators.append(analysis_func)
         self.view_maps.append(view_map)
         self.af_kwargs_list.append(kwargs)
 
