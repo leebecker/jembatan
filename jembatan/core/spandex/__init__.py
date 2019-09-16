@@ -268,5 +268,8 @@ class ViewMappedJembatanDoc(object):
 
         return ViewMappedSpandex(view, parent=self)
 
+    def __getitem__(self, viewname: str) -> Spandex:
+        return self.get_view(viewname)
+
 
 __all__ = ['errors', 'encoders']
