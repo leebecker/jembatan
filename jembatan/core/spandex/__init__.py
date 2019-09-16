@@ -4,7 +4,7 @@ import json as json_
 from collections import namedtuple
 from jembatan.core.spandex.typesys_base import Span, Annotation, AnnotationScope
 from pathlib import Path
-from typing import ClassVar, Dict, Iterable, Optional, Union
+from typing import ClassVar, Dict, Iterable, Optional, Tuple, Union
 
 
 SpandexConstants = namedtuple("SpandexContstants", ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
@@ -50,13 +50,13 @@ class Spandex(object):
         self._content_mime = value
 
     @property
-    def annotations(self):
+    def annotations(self) -> Iterable[Annotation]:
         return self._annotations
 
-    def compute_keys(self, layer_annotations: Iterable[Annotation]):
-        return [a.index_key for a in layer_annotations]
+    def compute_keys(self, annotations: Iterable[Annotation]) -> Iterable[Tuple]:
+        return [a.index_key for a in annotations]
 
-    def spanned_text(self, span: Span):
+    def spanned_text(self, span: Span) -> str:
         """
         Return text covered by the span
         """
@@ -71,34 +71,34 @@ class Spandex(object):
     def index_annotations(self, *annotations: Annotation):
         return self.add_annotations(annotations)
 
-    def select(self, layer: ClassVar[Annotation]) -> Iterable[Annotation]:
+    def select(self, type_: ClassVar[Annotation]) -> Iterable[Annotation]:
         """
-        Return all annotations in a layer
+        Return all annotations of type_
         """
-        return [a for a in self.annotations if isinstance(a, layer)]
+        return [a for a in self.annotations if isinstance(a, type_)]
 
-    def select_covered(self, layer: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
+    def select_covered(self, type_: ClassVar[Annotation], span: Span) -> Iterable[Annotation]:
         """
-        Return all annotations in a layer that are covered by the input span
+        Return all annotations in a type_ that are covered by the input span
         """
         begin = bisect.bisect_left(self._annotation_keys, (AnnotationScope.SPAN, span.begin))
         end = bisect.bisect_left(self._annotation_keys, (AnnotationScope.SPAN, span.end))
-        return [a for a in self.annotations[begin:end] if isinstance(a, layer)]
+        return [a for a in self.annotations[begin:end] if isinstance(a, type_)]
 
-    def select_preceding(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
+    def select_preceding(self, type_: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
-        Return all annotations in a layer that precede the input span
+        Return all annotations in a type_ that precede the input span
         """
         precede_span = Span(begin=0, end=span.begin)
-        preceding = self.select_covered(layer, precede_span)
+        preceding = self.select_covered(type_, precede_span)
         return preceding if count is None else preceding[-count:]
 
-    def select_following(self, layer: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
+    def select_following(self, type_: ClassVar[Annotation], span: Span, count: int=None) -> Iterable[Annotation]:
         """
-        Return all annotations in a layer that follow the input span
+        Return all annotations in a type_ that follow the input span
         """
         follow_span = Span(begin=span.end+1, end=len(self.content_string))
-        following = self.select_covered(layer, follow_span)
+        following = self.select_covered(type_, follow_span)
         return following if count is None else following[0:count]
 
     def select_all(self, span: Span) -> Iterable[Annotation]:
@@ -133,7 +133,7 @@ class Spandex(object):
 
 class JembatanDoc(object):
     """
-    Top level container for processing.  The JembatanDoc roughly describes /manages a document or artifact.
+    Top level container for processing.  The JembatanDoc roughly describes / manages a document or artifact.
     It is responsible for managing views.
     """
 
@@ -251,15 +251,23 @@ class ViewMappedJembatanDoc(object):
     def wrapped(self):
         return self._wrapped_jemdoc
 
+    @property
+    def default_view(self):
+        return self.get_view(constants.SPANDEX_DEFAULT_VIEW)
+
     def get_view(self, viewname):
-        mapped_viewname = self.view_map[viewname]
-        view = self.wrapped.get_view(mapped_viewname)
+        mapped_viewname = self.view_map.get(viewname, None)
+        if mapped_viewname is None:
+            # viewname was not specified in view map, so return the original view
+            view = self.wrapped.get_view(viewname)
+        else:
+            view = self.wrapped.get_view(mapped_viewname)
 
         # we need to wrap the view so that if it references its parent it can get back to the ViewMapped version
         # instead of the original one
         return ViewMappedSpandex(view, self)
 
-    def create_view(self, viewname):
+    def create_view(self, viewname: str) -> Spandex:
         if viewname in self.view_map:
             mapped_viewname = self.view_map[viewname]
             view = self.wrapped.create_view(mapped_viewname)
