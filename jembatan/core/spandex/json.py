@@ -10,7 +10,12 @@ import numbers
 import uuid
 
 
-class SpandexJsonEncoder(json.JSONEncoder):
+JEMBATAN_TYPE_STR = "jembatan"
+SPANDEX_TYPE_STR = "spandex"
+SPANDEX_ANNOTATION_TYPE_STR = "spandex_annotation"
+
+
+class JembatanJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         return self.encode_obj(obj)
@@ -24,7 +29,7 @@ class SpandexJsonEncoder(json.JSONEncoder):
                 return self.encode_obj(ref, inside_field=True)
             else:
                 annotation_obj = {}
-                annotation_obj['_type'] = "spandex_annotation"
+                annotation_obj['_type'] = SPANDEX_ANNOTATION_TYPE_STR
                 annotation_obj['_annotation_type'] = f"{obj.__class__.__module__}.{obj.__class__.__name__}"
                 annotation_obj['_fields'] = [
                     self.encode_annotation_field(getattr(obj, fname), f)
@@ -44,35 +49,31 @@ class SpandexJsonEncoder(json.JSONEncoder):
         }
 
     def encode_obj(self, obj, inside_field=False):
-        if isinstance(obj, spandex.Spandex):
-
-            spandex_obj = {"_type": "spandex", 'views': []}
+        if isinstance(obj, spandex.JembatanDoc):
+            jembatan_obj = {
+                '_type': JEMBATAN_TYPE_STR,
+                'metadata': obj.metadata,
+                'views': []
+            }
 
             for viewname, view in obj.views.items():
+                view_obj = self.encode_obj(view, inside_field)
+                jembatan_obj['views'].append(view_obj)
 
-                annotations = [self.encode_obj(annotation, inside_field) for annotation in view.annotations]
+            return jembatan_obj
 
-                view_obj = {
-                    "name": viewname,
-                    "annotations": annotations,
-                    "content_string": view.content_string,
-                    "content_mime": view.content_mime,
-                    "_type": "spandex_view"
-                }
+        if isinstance(obj, spandex.Spandex):
 
+            spandex_obj = {
+                "_type": SPANDEX_TYPE_STR,
+                "name": obj.viewname,
+                "content_string": obj.content_string,
+                "content_mime": obj.content_mime,
+            }
 
-                """
-                for layer_class, annotation_objs in view.annotations.items():
-                    layer_name = '.'.join([layer_class.__module__, layer_class.__name__])
-                    annotations = [self.encode_obj(annotation, inside_field) for annotation in annotation_objs]
-                    layer_obj = {
-                        'name': layer_name,
-                        'annotations': annotations,
-                        '_type': 'spandex_layer'
-                    }
-                    layers.append(layer_obj)
-                """
-                spandex_obj['views'].append(view_obj)
+            annotations = [self.encode_obj(annotation, inside_field) for annotation in obj.annotations]
+            spandex_obj['annotations'] = annotations
+
             return spandex_obj
 
         elif isinstance(obj, Sequence) and not isinstance(obj, str):
@@ -106,7 +107,7 @@ class SpandexJsonEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class SpandexJsonDecoder(json.JSONDecoder):
+class JembatanJsonDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
         self.reset_layers()
@@ -184,22 +185,25 @@ class SpandexJsonDecoder(json.JSONDecoder):
     def object_hook(self, obj):
 
         obj_type = obj['_type']
-        if obj_type == 'spandex':
-            spndx = spandex.Spandex()  # create empty spandex structure for now
+
+        if obj_type == JEMBATAN_TYPE_STR:
+            metadata = self.object_hook(obj['metadata']) if obj.get('metadata', None) else {}
+            jemdoc = spandex.JembatanDoc(metadata=metadata)
 
             for view_obj in obj['views']:
                 viewname = view_obj['name']
+
                 if viewname == spandex.constants.SPANDEX_DEFAULT_VIEW:
-                    view = spndx
-                    # default view is the root spandex, so no need to create
-                    # just set the content
-                    spndx.content_string = view_obj['content_string']
-                    spndx.content_mime = view_obj['content_mime']
+                    # default view exists by way of constructor
+                    view = jemdoc.get_view(viewname)
+                    view.content_string = view_obj['content_string']
+                    view.content_mime = view_obj['content_mime']
                 else:
                     # for other views create and set content
-                    view = spndx.create_view(viewname=viewname,
-                                             content_string=view_obj['content_string'],
-                                             content_mime=view_obj['content_mime'])
+                    view = jemdoc.create_view(
+                        viewname=viewname,
+                        content_string=view_obj['content_string'],
+                        content_mime=view_obj['content_mime'])
 
                 # reset layer registry - this is used for lookup by ID when resolving references
                 # in the JSON structure
@@ -213,7 +217,7 @@ class SpandexJsonDecoder(json.JSONDecoder):
                     annotation_obj_type = annotation_obj.get("_type", None)
 
                     # FIXME raise exception or print error
-                    assert annotation_obj_type == "spandex_annotation"
+                    assert annotation_obj_type == SPANDEX_ANNOTATION_TYPE_STR
 
                     if annotation_obj:
                         annotation_type = annotation_obj['_annotation_type']
@@ -229,4 +233,5 @@ class SpandexJsonDecoder(json.JSONDecoder):
 
             # reset layer registry
             self.reset_layers()
-            return spndx
+
+            return jemdoc

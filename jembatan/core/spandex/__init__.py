@@ -7,64 +7,6 @@ from pathlib import Path
 from typing import ClassVar, Dict, Iterable, Optional, Union
 
 
-class DefaultViewOps(object):
-    """
-    Defines behaviors we can perform on a view.  This is intended to be used for the root (default) Spandex that
-    governs all views
-    """
-
-    def __init__(self):
-        pass
-
-    def get_view(self, spndx, viewname: str):
-
-        root = spndx.root
-
-        view = None
-
-        try:
-            view = root.views[viewname]
-        except KeyError as e:
-            raise KeyError("No view named '{}' in Spandex {}".format(viewname, root))
-
-        return view
-
-    def create_view(self, spndx: "Spandex", viewname: str, content_string: str=None, content_mime: str=None):
-        root = spndx if not spndx.root else spndx.root
-
-        new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, root=root, viewname=viewname)
-        if viewname in root.views:
-            raise KeyError("View {} already exists in Spandex{}".format(viewname, root))
-        root.views[viewname] = new_view_spndx
-        return new_view_spndx
-
-
-class ViewMappedViewOps(DefaultViewOps):
-    """
-    Overrides ViewOps by resolving view names by way of a view_map
-
-    This is the mechanism that allows us to say, run this analysis that normally
-    runs on view X and instead run it on view Y.
-    """
-    def __init__(self, view_map: Dict[str, str]=None):
-        self.view_map = view_map or {}
-
-    def get_view(self, spndx: "Spandex", viewname: str):
-        # Attempt to map view from given view map.  If none exists, pass through the unmappped view name
-        mapped_viewname = self.view_map.get(viewname, viewname)
-        return super(ViewMappedViewOps, self).get_view(spndx, mapped_viewname)
-
-    def create_view(self, root_spndx: "Spandex", viewname: str, content_string: str=None, content_mime: str=None):
-        """
-
-        """
-        mapped_viewname = self.view_map[viewname]
-        return super(ViewMappedViewOps, self).create_view(root_spndx,
-                                                          viewname=mapped_viewname,
-                                                          content_string=content_string,
-                                                          content_mime=content_mime)
-
-
 SpandexConstants = namedtuple("SpandexContstants", ["SPANDEX_DEFAULT_VIEW", "SPANDEX_URI_VIEW"])
 
 constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
@@ -73,73 +15,59 @@ constants = SpandexConstants("_SpandexDefaultView", "_SpandexUriView")
 # object is mutable for performant reasons
 class Spandex(object):
     """
-    Spandex - data structure for holding views of data, its content, and annotations
+    Spandex - data structure for holding a view of data, its content, and annotations
     """
 
-    def __init__(self, content_string: str=None, content_mime: str = None, root=None, viewname=None):
+    def __init__(self, parent: "Jembatan", content_string: str=None, content_mime: str = None, viewname=None):
+        self._parent = parent
         self._content_string = content_string
         self._content_mime = content_mime
         self._annotations = []
         self._annotation_keys = []
-        self.viewops = DefaultViewOps()
-
-        if not root:
-            self.viewname = constants.SPANDEX_DEFAULT_VIEW
-            self._views = {
-                constants.SPANDEX_DEFAULT_VIEW: self
-            }
-            self.root = self
-        else:
-            self.viewname = viewname
-            self._views = None
-            self.root = root
+        self.viewname = viewname
 
     def __repr__(self):
         return "<{}/{} at 0x{:x}>".format(self.__class__.__name__, self.viewname, id(self))
 
     @property
-    def is_root(self):
-        return self.root == self
+    def parent(self) -> "JembatanDoc":
+        return self._parent
 
     @property
-    def views(self):
-        return self.root._views
-
-    @property
-    def content_string(self):
+    def content_string(self) -> str:
         return self._content_string
 
     @content_string.setter
-    def content_string(self, value):
+    def content_string(self, value: str):
         self._content_string = value
 
     @property
-    def content_mime(self):
+    def content_mime(self) -> str:
         return self._content_mime
 
     @content_mime.setter
-    def content_mime(self, value):
+    def content_mime(self, value: str):
         self._content_mime = value
 
     @property
     def annotations(self):
         return self._annotations
 
-    def get_view(self, viewname: str):
-        return self.viewops.get_view(self, viewname)
-
-    def get_or_create_view(self, viewname: str):
-        try:
-            view = self.get_view(viewname)
-        except KeyError:
-            view.create_view(viewname)
-        return view
-
-    def __getitem__(self, viewname: str):
-        return self.get_view(viewname)
-
-    def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
-        return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
+    #def get_view(self, viewname: str):
+    #    return self.viewops.get_view(self, viewname)
+    #
+    #def get_or_create_view(self, viewname: str):
+    #    try:
+    #        view = self.get_view(viewname)
+    #    except KeyError:
+    #        view = self.create_view(viewname)
+    #    return view
+    #
+    #def __getitem__(self, viewname: str):
+    #    return self.get_view(viewname)
+    #
+    #def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
+    #    return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
 
     def compute_keys(self, layer_annotations: Iterable[Annotation]):
         return [a.index_key for a in layer_annotations]
@@ -219,43 +147,73 @@ class Spandex(object):
             raise TypeError("`path` needs to be one of [str, None, Path], but was <{0}>".format(type(path)))
 
 
-class ViewMappedSpandex(object):
+class JembatanDoc(object):
+    """
+    Top level container for processing.  The JembatanDoc roughly describes /manages a document or artifact.
+    It is responsible for managing views.
+    """
 
-    def __init__(self, wrapped_spandex, view_map):
-        """
-        Wraps a Spandex object so we can override its view names for use by
-        an analysis function
+    def __init__(self, metadata: Dict=None, content_string: str=None, content_mime: str=None):
+        self.metadata = metadata
+        self._views = {}
 
-        Args:
-        wrapped_spandex (Spandex) - The original Spandex which we want to inject
-            a view mapping
-        view_map (dict) - A map between the names used by the
-            analyzer function and the names specified by the pipeline
-        """
-        self._wrapped_spandex = wrapped_spandex
-        self.viewops = ViewMappedViewOps(view_map)
+        self.create_view(
+            constants.SPANDEX_DEFAULT_VIEW,
+            content_string=content_string,
+            content_mime=content_mime,
+        )
 
     @property
-    def content(self):
-        return self._wrapped_spandex._content_string
+    def default_view(self):
+        return self.get_view(constants.SPANDEX_DEFAULT_VIEW)
 
-    @content.setter
-    def content(self, value):
-        self._wrapped_spandex._content_string = value
+    def get_view(self, viewname: str):
+        view = None
 
-    def get_view(self, viewname):
-        view = self.viewops.get_view(self._wrapped_spandex, viewname)
-        return ViewMappedSpandex(view, self.viewops)
+        try:
+            view = self.views[viewname]
+        except KeyError as e:
+            raise KeyError("No view named '{}' in Jembatan {}".format(viewname, self))
+
+        return view
+
+    def get_or_create_view(self, viewname: str):
+        try:
+            view = self.get_view(viewname)
+        except KeyError:
+            view = self.create_view(viewname)
+        return view
 
     def __getitem__(self, viewname: str):
         return self.get_view(viewname)
 
     def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
-        view = self.viewops.create_view(self._wrapped_spandex,
-                                        viewname,
-                                        content_string=content_string,
-                                        content_mime=content_mime)
-        return ViewMappedSpandex(view, self.viewops)
+
+        if viewname in self.views:
+            raise KeyError("View {} already exists in Jembatan{}".format(viewname, self))
+
+        new_view_spndx = Spandex(content_string=content_string, content_mime=content_mime, parent=self, viewname=viewname)
+        self.views[viewname] = new_view_spndx
+        return new_view_spndx
+
+    @property
+    def views(self):
+        return self._views
+
+
+class ViewMappedSpandex(object):
+
+    def __init__(self, spandex: Spandex, view_mapped_parent: JembatanDoc):
+        '''
+        Wrapper constructor.
+        @param obj: object to wrap
+        '''
+        # wrap the object
+        self._wrapped_spandex = spandex
+        self._wrapped_parent = view_mapped_parent
+
+        if view_mapped_parent.wrapped != self.wrapped.parent:
+            raise ValueError("Can not wrap parent from different Jembatans")
 
     def __getattr__(self, attr):
         # see if this object has attr
@@ -264,9 +222,67 @@ class ViewMappedSpandex(object):
         if attr in self.__dict__:
             # this object has it
             return getattr(self, attr)
-
         # proxy to the wrapped object
-        return getattr(self._wrapped_spandex, attr)
+        return getattr(self.wrapped, attr)
+
+    def __repr__(self):
+        return "<{}/{} at 0x{:x}>".format(self.__class__.__name__, self.viewname, id(self))
+
+    @property
+    def wrapped(self):
+        return self._wrapped_spandex
+
+    @property
+    def parent(self):
+        return self._wrapped_parent
+
+
+class ViewMappedJembatanDoc(object):
+    '''
+    Object wrapper class.
+    This a wrapper for objects. It is initialiesed with the object to wrap
+    and then proxies the unhandled getattribute methods to it.
+    Other classes are to inherit from it.
+    '''
+    def __init__(self, jemdoc: JembatanDoc, view_map):
+        '''
+        Wrapper constructor.
+        @param obj: object to wrap
+        '''
+        # wrap the object
+        self._wrapped_jemdoc = jemdoc
+        self.view_map = view_map
+
+    def __getattr__(self, attr):
+        # see if this object has attr
+        # NOTE do not use hasattr, it goes into
+        # infinite recurrsion
+        if attr in self.__dict__:
+            # this object has it
+            return getattr(self, attr)
+        # proxy to the wrapped object
+        return getattr(self._wrapped_jemdoc, attr)
+
+    @property
+    def wrapped(self):
+        return self._wrapped_jemdoc
+
+    def get_view(self, viewname):
+        mapped_viewname = self.view_map[viewname]
+        view = self.wrapped.get_view(mapped_viewname)
+
+        # we need to wrap the view so that if it references its parent it can get back to the ViewMapped version
+        # instead of the original one
+        return ViewMappedSpandex(view, self)
+
+    def create_view(self, viewname):
+        if viewname in self.view_map:
+            mapped_viewname = self.view_map[viewname]
+            view = self.wrapped.create_view(mapped_viewname)
+        else:
+            view = self.wrapped.create_view(viewname)
+
+        return ViewMappedSpandex(view, parent=self)
 
 
 __all__ = ['errors', 'encoders']

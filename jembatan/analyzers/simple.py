@@ -1,6 +1,7 @@
-from jembatan.core.af import AnalysisFunction
-from jembatan.core.spandex import Span, Spandex
+from jembatan.core.af import process_default_view, AnalysisFunction
+from jembatan.core.spandex import JembatanDoc, Span, Spandex
 from jembatan.typesys import Annotation
+from jembatan.typesys.segmentation import Token
 from typing import Pattern
 
 import re
@@ -23,7 +24,8 @@ class RegexMatchAnnotator(AnalysisFunction):
         self.annotation_type = annotation_type
         self.window_type = window_type
 
-    def process(self, spndx: Spandex):
+    @process_default_view
+    def process(self, spndx: Spandex, **kwargs):
         if self.window_type:
             windows = [window.span for window in spndx.select(self.window_type)]
         else:
@@ -59,7 +61,8 @@ class RegexSplitAnnotator(AnalysisFunction):
         self.annotation_type = annotation_type
         self.window_type = window_type
 
-    def process(self, spndx: Spandex):
+    @process_default_view
+    def process(self, spndx: Spandex, **kwargs):
         if self.window_type:
             windows = [window.span for window in spndx.select(self.window_type)]
         else:
@@ -98,11 +101,10 @@ class RegexSplitAnnotator(AnalysisFunction):
 
 class SimpleTokenizer:
     def __init__(self, window_type=None):
-        from jembatan.typesys.segmentation import Token
-        self.regex_annotator = RegexMatchAnnotator(re.compile("\w+"), Token, window_type=window_type)
+        self.regex_annotator = RegexMatchAnnotator(re.compile(r'\w+'), Token, window_type=window_type)
 
-    def process(self, spndx):
-        self.regex_annotator.process(spndx)
+    def process(self, jemdoc: JembatanDoc):
+        self.regex_annotator.process(jemdoc)
 
 
 class SimpleSentenceSegmenter:
@@ -111,5 +113,5 @@ class SimpleSentenceSegmenter:
         self.regex_annotator = RegexMatchAnnotator(
             re.compile(re.compile(r'[^\s\.][^\.]+')), Sentence, window_type=window_type)
 
-    def process(self, spndx):
-        self.regex_annotator.process(spndx)
+    def process(self, jemdoc: JembatanDoc):
+        self.regex_annotator.process(jemdoc)

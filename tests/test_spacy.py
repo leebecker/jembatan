@@ -1,5 +1,5 @@
 from jembatan.analyzers import spacy as jemspacy
-from jembatan.readers.textreader import text_to_spandex
+from jembatan.readers.textreader import text_to_jembatan_doc
 from jembatan.core.spandex import json as spandex_json
 
 import json
@@ -47,12 +47,13 @@ def test_spacy_dep(spacy_pipeline):
     expected_pos_tags = ['NNP', 'VBD', 'DT', 'NN', 'IN', 'NNP', '.']
     expected_lemmas = ['John', 'give', 'the', 'ball', 'to', 'Mary', '.']
 
-    spndx = text_to_spandex(text)
+    jemdoc = text_to_jembatan_doc(text)
 
     spacy_analyzer = jemspacy.SpacyAnalyzer(spacy_pipeline=spacy_pipeline)
 
-    spacy_analyzer.process(spndx)
+    spacy_analyzer.process(jemdoc)
 
+    spndx = jemdoc.default_view
     # pull out annotations and check values
     tokens = spndx.select(jemtypes.segmentation.Token)
     sentences = spndx.select(jemtypes.segmentation.Sentence)
@@ -88,17 +89,20 @@ def test_spacy_json_serialization(spacy_pipeline):
     expected_pos_tags = ['NNP', 'VBD', 'DT', 'NN', 'IN', 'NNP', '.']
     expected_lemmas = ['john', 'give', 'the', 'ball', 'to', 'mary', '.']
 
-    spndx_in = text_to_spandex(text)
+    jemdoc_in = text_to_jembatan_doc(text)
 
     spacy_analyzer = jemspacy.SpacyAnalyzer(spacy_pipeline=spacy_pipeline)
 
-    spacy_analyzer.process(spndx_in)
+    spacy_analyzer.process(jemdoc_in)
 
-    serialized_spndx_str = json.dumps(spndx_in, cls=spandex_json.SpandexJsonEncoder)
+    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanJsonEncoder)
 
-    spndx_out = json.loads(serialized_spndx_str, cls=spandex_json.SpandexJsonDecoder)
+    jemdoc_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanJsonDecoder)
 
+    spndx_in = jemdoc_in.default_view
     sentences_in = spndx_in.select(jemtypes.segmentation.Sentence)
+
+    spndx_out = jemdoc_out.default_view
     sentences_out = spndx_out.select(jemtypes.segmentation.Sentence)
     assert len(sentences_in) == len(sentences_out)
 

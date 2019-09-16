@@ -1,12 +1,10 @@
 import re
-#from jembatan.spandex import (Span, Spandex)
-#from ..spandex.types import (Document, Sentence, Token, PartOfSpeech, NounChunk, DependencyEdge, Entity)
 import itertools
 import functools
 
 from enum import auto, Flag
 from jembatan.core.spandex import (Span, Spandex)
-from jembatan.core.af import AnalysisFunction
+from jembatan.core.af import process_default_view, AnalysisFunction
 from jembatan.typesys.chunking import NounChunk, Entity
 from jembatan.typesys.segmentation import (Document, Sentence, Token)
 from jembatan.typesys.syntax import (DependencyEdge, DependencyNode, DependencyParse)
@@ -265,7 +263,8 @@ class SpacyAnalyzer(AnalysisFunction):
 
         self.window_type = window_type
 
-    def process(self, spndx, **kwargs):
+    @process_default_view
+    def process(self, spndx: Spandex, **kwargs):
         """
         Args:
             **kwargs: Keyword Arguments
@@ -281,7 +280,9 @@ class SpacyAnalyzer(AnalysisFunction):
                 by subsection boundaries  Default of None means to process the
                 full contents of the Spandex.
         """
-        #window_type = kwargs.get('window_type', None)
+
+        # FIXME, better in init or as kwargs?
+        # window_type = kwargs.get('window_type', None)
         annotation_layers = kwargs.get('annotation_layers', AnnotationLayers.ALL())
 
         if not self.window_type:
