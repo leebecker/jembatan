@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from jembatan.core.spandex import Jembatan
+from jembatan.core.spandex import JembatanDoc
 
 
 class SimplePipeline:
@@ -9,7 +9,7 @@ class SimplePipeline:
     """
 
     @classmethod
-    def iterate(cls, collection: Iterable[Jembatan], stages: Iterable):
+    def iterate(cls, collection: Iterable[JembatanDoc], stages: Iterable):
         """
         Process Spandex collection
         Iterator over processed Spandexes.  Useful if you want to work with the Spandex objects beyond just
@@ -23,7 +23,7 @@ class SimplePipeline:
             yield jemdoc
 
     @classmethod
-    def iterate_by_stage(cls, collection: Iterable[Jembatan], stages: Iterable):
+    def iterate_by_stage(cls, collection: Iterable[JembatanDoc], stages: Iterable):
         for i, jemdoc in enumerate(collection):
             path = []
             for stage in stages:
@@ -32,7 +32,7 @@ class SimplePipeline:
                 yield i, '/'.join(path), jemdoc
 
     @classmethod
-    def run(cls, collection: Iterable[Jembatan], stages: Iterable):
+    def run(cls, collection: Iterable[JembatanDoc], stages: Iterable):
         """
         Executes a linear pipeline of stages and runs collection_process_complete on those stages
         """
