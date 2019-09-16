@@ -95,9 +95,9 @@ def test_spacy_json_serialization(spacy_pipeline):
 
     spacy_analyzer.process(jemdoc_in)
 
-    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanJsonEncoder)
+    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanDocJsonEncoder)
 
-    jemdoc_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanJsonDecoder)
+    jemdoc_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanDocJsonDecoder)
 
     spndx_in = jemdoc_in.default_view
     sentences_in = spndx_in.select(jemtypes.segmentation.Sentence)

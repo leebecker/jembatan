@@ -53,22 +53,6 @@ class Spandex(object):
     def annotations(self):
         return self._annotations
 
-    #def get_view(self, viewname: str):
-    #    return self.viewops.get_view(self, viewname)
-    #
-    #def get_or_create_view(self, viewname: str):
-    #    try:
-    #        view = self.get_view(viewname)
-    #    except KeyError:
-    #        view = self.create_view(viewname)
-    #    return view
-    #
-    #def __getitem__(self, viewname: str):
-    #    return self.get_view(viewname)
-    #
-    #def create_view(self, viewname: str, content_string: str=None, content_mime: str=None):
-    #    return self.viewops.create_view(self, viewname, content_string=content_string, content_mime=content_mime)
-
     def compute_keys(self, layer_annotations: Iterable[Annotation]):
         return [a.index_key for a in layer_annotations]
 

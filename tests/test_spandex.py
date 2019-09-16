@@ -178,10 +178,10 @@ def test_serialization():
 
     jemdoc_in = jemdoc
 
-    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanJsonEncoder)
+    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanDocJsonEncoder)
 
     # deserialize spandex and validate
-    jem_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanJsonDecoder)
+    jem_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanDocJsonDecoder)
     spndx_out = jem_out.get_view(jemconst.SPANDEX_DEFAULT_VIEW)
 
     assert len(spndx_out.select(BarSpanAnnotation)) == 5

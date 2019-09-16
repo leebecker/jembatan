@@ -15,7 +15,7 @@ SPANDEX_TYPE_STR = "spandex"
 SPANDEX_ANNOTATION_TYPE_STR = "spandex_annotation"
 
 
-class JembatanJsonEncoder(json.JSONEncoder):
+class JembatanDocJsonEncoder(json.JSONEncoder):
 
     def default(self, obj):
         return self.encode_obj(obj)
@@ -107,7 +107,7 @@ class JembatanJsonEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class JembatanJsonDecoder(json.JSONDecoder):
+class JembatanDocJsonDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
         self.reset_layers()
