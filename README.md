@@ -1,5 +1,5 @@
 # Jembatan
-Jembatan is a pythonic framework for working with annotations and features in text and natural language processing.  
+Jembatan is a pythonic framework for working with annotations typesystems and features in text and natural language processing.  
 It borrows heavily from the `CAS` and `AnalysisEngine` concepts in [UIMA](https://uima.apache.org/),
 `Slab` and `AnalysisFunction` in [Chalk](https://uima.apache.org/) and [Epic](https://github.com/dlwh/epic) as well as the querying and pipeline conveniences found in [uimafit](https://github.com/apache/uima-uimafit) and [ClearTk](https://cleartk.github.io/cleartk/).
 
@@ -22,27 +22,26 @@ This example shows how to quickly run Jembatan's [SpacyNLP](http://spacy.io) wra
 ```python
 import spacy
 
-from spacy.en import English
-from jembatan.core.spandex import (Span, Spandex)
+from jembatan.core.spandex import (JembatanDoc, Span, Spandex)
 from jembatan.analyzers.spacy import SpacyAnalyzer
-from jembatan import typesys as jemtypes
+from jembatan.typesys.segmentation import Sentence, Token
 
-
-# initialize Spandex with document text
-spndx = Spandex("""Education is all a matter of building bridges. 
+# creata a JembatanDoc.  Initialize default view with content_string
+jemdoc = JembatanDoc(content_string="""Education is all a matter of building bridges. 
     When one burns one's bridges, what a very nice fire it makes""")
 
 # initialize and run Spacy on Spandex
 # the SpacyAnalyzer will add annotations for Sentences, Tokens, DependencyParses and more.
 en_nlp = spacy.load("en_core_web_sm")
 spacy_analyzer = SpacyAnalyzer(en_nlp)
-spacy_analyzer(spndx)
+spacy_analyzer(jemdoc)
 
-# Query and print annotations
-for i,  sent in enumerate(spndx.select(jemtypes.Sentence)):
-    print("Sentence {:d}: {}".format(i, spndx.spanned(sent)))
-    for j, tok in enumerate(spndx.covered(typesys.Token, sentspan)):
-        toktext = spndx.spanned(tok)
+# Query and print annotations from default view
+spndx = jemdoc.default_view
+for i,  sent in enumerate(spndx.select(Sentence)):
+    print("Sentence {:d}: {}".format(i, spndx.spanned_text(sent)))
+    for j, tok in enumerate(spndx.select_covered(Token, sent)):
+        toktext = spndx.spanned_text(tok)
         print("\t {:d}\t{}\t{}".format(j, toktext, tok.pos))
 ```
 
@@ -77,27 +76,36 @@ Sentence 1: When one burns one's bridges, what a very nice fire it makes
 
 ## Tutorial
 
-### Spans and Spandex
+### JembatanDocs, Spans and Spandex
+
+In jembatan, Documents or artifacts are defined using the `JembatanDoc` class.  This is a top-level container,
+which manages metadata (IDs, paths, source, etc) as well as views of the data.
+
+Views are a way to organize around different concerns of the document.  For example a given resource may have one view
+that contains the raw HTML, another view with the plain text.  Or in machine translation, one can imagine some artifact
+containing both the input text and the output text as different views.  Views are backed by the `Spandex` object, which
+are defined by a `name`, `content_string`, `content_mime`. Views also provide the mechanism for collecting, indexing and
+querying annotations over the view.
+
 A `Span` is essentially a tuple with a `begin` and `end` field which (presumably) define character offsets.  Spans
-are comparable, to allow for indexing and fast retrieval relative to other Spans.
+are comparable to allow for indexing and fast retrieval relative to other Spans.
 
-The `Spandex` is the central data structure through which all analyses in
-Jembatan pass.  The Spandex houses layers of spans plus annotations over 
-different views of a document/resource.  Typically Jembatan pipelines 
-are formed by passing the same Spandex objects to multiple analyzers.
+Typically Jembatan pipelines are formed by passing the same JembatanDoc objects to multiple analyzers.
 
-To get a better idea of these capabilities let's play with the Spandex
-APIs.
+To get a better idea of these capabilities let's play with the jembatan APIs.
 
 ```python
-from jembatan.core.spandex import (Span, Spandex)
+from jembatan.core.spandex import (JembatanDoc, Span, Spandex)
 
-# Create Spandex initialized with text
-spndx = Spandex("Up until this point we resisted the urge to make a reference to lycra and hot pants.")
+# Create JembatanDoc initialized with text in default view
+jemdoc = JembatanDoc(content_string="Up until this point we resisted the urge to make a reference to lycra and hot pants.")
+
+# get default view
+spndx = jemdoc.default_view
 
 # you can construct Spans in two ways
 up_span = Span(begin=0, end=2)
-this_span = Span(10, 14)
+this_span = Span(9, 14)
 
 # print text of up_span.  Should yield 'Up' in both cases
 # method 1
@@ -107,7 +115,7 @@ print(spndx.spanned_text(up_span))
 print(up_span.spanned_text(spndx))
 
 # print text of this_span
-print(spndx.spanned_text(this_span)
+print(spndx.spanned_text(this_span))
 ```
 
 ### Typesystem and Annotations
@@ -168,9 +176,30 @@ And to instantiate and populate a HotPants instance
     hot_pants = HotPants(begin=74, end=83, lycra=lycra)
 ```
 
+
+### Views
+
+As mentioned above `JembatanDoc` maps names to a collection of `Spandex` backed views.
+
+```python
+
+from jembatan.core.spandex import JembatanDoc
+
+jemdoc = JembatanDoc()
+jemdoc.default_view.content_string = "Some text for the default view"
+
+other_view_name = "otherView"
+other_view = jemdoc.create_view(other_view_name, "Some text for the other view")
+
+print("Default View Text via get_view method:\n", jemdoc.get_view("_SpandexDefaultView").content_string)
+print("Default View Text via default_view attribute:\n", jemdoc.default_view.content_string)
+print("Other View Text via get_view method:\n", jemdoc.get_view(other_view_name).content_string)
+```
+
+
 ### Analysis Functions
 
-In line with Python's duck typing, an Analysis Function is any object or function that implements `__call__(spndx, **kwargs)`.  Analysis
+In line with Python's duck typing, an Analysis Function is any object or function that implements `__call__(jemdoc: JembatanDoc, **kwargs)`.  Analysis
 Functions are permitted lots of room.  Some may simply query the 
 Spandex for information, more commonly they will annotate one or 
 more views of the text and write out information for other use.
@@ -179,12 +208,13 @@ more views of the text and write out information for other use.
 For the purposes of illustration, let's create functions that
 annotate the text with mentions of lycra or hot pants.
 
-```
+```python
 import re
 from collections import namedtuple
 
 
-def lycra_analyzer(spndx, **kwargs):
+def lycra_analyzer(jemdoc, **kwargs):
+    spndx = jemdoc.default_view
     lycra_re = re.compile("(lycra)". re.IGNORECASE)
 
     # Find matches for regex above
@@ -193,11 +223,11 @@ def lycra_analyzer(spndx, **kwargs):
         mention = Lycra(begin=m[0], end=m[1], index=i)
         mentions.append(mention)
 
-    # Add layer of lycra annotation to the Spandex
-    spndx.add_layer(Lycra, mentions)
+    # Add layer of lycra annotation to the Default View Spandex
+    spndx.add_annotations(mentions)
 
 # run the Lycra analyzer
-lycra_analyzer(spndx)
+lycra_analyzer(jemdoc)
 ```
 
 #### Class-based
@@ -205,28 +235,58 @@ For convenience a base Analysis Function can be found at
 `jembatan.core.af.AnalysisFunction`.  To define your own,
 simply inherit from it, and override the `process` method.
 
-```
+```python
 from jembatan.core.af import AnalysisFunction
+from jembatan.core.spandex import JembatanDoc
 
-HotPants = namedtuple(idx)
 class HotPantsAnalyzer(AnalysisFunction):
 
-    def process(self, spndx, **kwargs):
+    def process(self, jemdoc: JembatanDoc, **kwargs):
+        spndx = jemdoc.default_view
         hotpants_re = re.compile("(hot pants|hotpants)". re.IGNORECASE)
 
         # Find matches for regex above
         mentions = []
         for i, m in enumerate(hotpants_re.finditer(spndx.content)):
-            mention = HotPants(begin=m[0], end=m[1], index=i)
+            mention = HotPants(begin=m[0], end=m[1])
             mentions.append(mention)
 
         # Add layer of annotation to the Spandex
-        spndx.add_layer(Hotpants, mentions)
+        spndx.add_annotations(mentions)
 
 # initialize and run hot pants analyzer
 hot_pants_analyzer = HotPantsAnalyzer()
-hot_pants_analyzer(spndx)
+hot_pants_analyzer(jemdoc)
 ```
+
+#### Single vs Multi-View Analysis Functions
+The majority of Analysis Functions operate solely on the default view and have no need to retrieve or update other views.
+Multi-View Analysis Functions on the other hand typically access either views via parameters or static configuration.
+
+The `process_default_view` decorator is provided as a convenience to eliminate the need to query the JembatanDoc for the default view
+The HotPants example above can be written more concisely as follows:
+
+```python
+from jembatan.core.af import process_default_view, AnalysisFunction
+from jembatan.core.spandex import Spandex
+
+class HotPantsAnalyzer(AnalysisFunction):
+
+    @process_default_view
+    def process(self, spndx: Spandex, **kwargs):
+        hotpants_re = re.compile("(hot pants|hotpants)". re.IGNORECASE)
+
+        # Find matches for regex above
+        mentions = []
+        for i, m in enumerate(hotpants_re.finditer(spndx.content)):
+            mention = HotPants(begin=m[0], end=m[1])
+            mentions.append(mention)
+
+        # Add layer of annotation to the Spandex
+        spndx.add_annotations(mentions)
+```
+
+
 
 
 #### What about the Keyword Arguments? 
@@ -252,7 +312,7 @@ The simplest operation returns all instances of a particular
 annotation type from the Spandex along with their spans.
 
 
-```
+```python
 lycra_spans = spndx.select(Lycra)
 hotpant_spans = spndx.select(HotPants)
 ```

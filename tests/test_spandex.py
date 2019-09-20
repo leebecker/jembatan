@@ -1,7 +1,9 @@
 from bson import ObjectId
-from dataclasses import dataclass, field
-from jembatan.core.spandex import Span, Spandex
+from dataclasses import field
+from jembatan.core.spandex import Span
+from jembatan.core.spandex import constants as jemconst
 from jembatan.core.spandex import json as spandex_json
+from jembatan.readers.textreader import text_to_jembatan_doc
 from jembatan.typesys import Annotation, AnnotationScope, DocumentAnnotation, SpannedAnnotation
 from typing import Dict, List
 
@@ -84,7 +86,8 @@ def test_typesys():
 def test_typesys_inheritance():
 
     content_string = ''.join(str(s % 10) for s in range(500))
-    spndx = Spandex(content_string=content_string)
+    jemdoc = text_to_jembatan_doc(content_string)
+    spndx = jemdoc.get_view(jemconst.SPANDEX_DEFAULT_VIEW)
 
     foo = FooSpanAnnotation(begin=100, end=200)
     foo_one = FooOneExtended(begin=200, end=300)
@@ -101,7 +104,8 @@ def test_typesys_inheritance():
 
 def test_spandex():
     content_string = ''.join(str(s % 10) for s in range(500))
-    spndx = Spandex(content_string=content_string)
+    jemdoc = text_to_jembatan_doc(content_string)
+    spndx = jemdoc.get_view(jemconst.SPANDEX_DEFAULT_VIEW)
 
     # make Foos cover all character offsets with range 5-8
     for i in range(50):
@@ -144,7 +148,9 @@ def test_spandex():
 
 def test_serialization():
     content_string = ''.join(str(s % 10) for s in range(100))
-    spndx = Spandex(content_string=content_string)
+
+    jemdoc = text_to_jembatan_doc(content_string)
+    spndx = jemdoc.get_view(jemconst.SPANDEX_DEFAULT_VIEW)
 
     # make Foos cover all character offsets with range 5-8
     prev = None
@@ -170,12 +176,15 @@ def test_serialization():
     blah2 = BlahDocAnnotation()
     spndx.add_annotations(blah1, blah2)
 
-    spndx_in = spndx
+    jemdoc_in = jemdoc
 
-    serialized_spndx_str = json.dumps(spndx_in, cls=spandex_json.SpandexJsonEncoder)
+    serialized_spndx_str = json.dumps(jemdoc_in, cls=spandex_json.JembatanDocJsonEncoder)
 
     # deserialize spandex and validate
-    spndx_out = json.loads(serialized_spndx_str, cls=spandex_json.SpandexJsonDecoder)
+    jem_out = json.loads(serialized_spndx_str, cls=spandex_json.JembatanDocJsonDecoder)
+    spndx_out = jem_out.get_view(jemconst.SPANDEX_DEFAULT_VIEW)
+
+    assert len(spndx_out.select(BarSpanAnnotation)) == 5
     for bar in spndx_out.select(BarSpanAnnotation):
         foos = spndx_out.select_covered(FooSpanAnnotation, bar)
         assert len(foos) == 10
@@ -192,5 +201,3 @@ def test_serialization():
 
     blahs = spndx.select(BlahDocAnnotation)
     assert len(blahs) == 2
-
-

@@ -1,15 +1,15 @@
-from jembatan.core.spandex import Spandex
+from jembatan.core.spandex import JembatanDoc
 
 
-def text_to_spandex(text):
+def text_to_jembatan_doc(text):
     """
-    Create unadorned plaintext cas
+    Create Jembatan with text populating default view
     """
-    spndx = Spandex(content_string=text, content_mime="text/plain")
-    return spndx
+    jem = JembatanDoc(content_string=text, content_mime="text/plain")
+    return jem
 
 
-class TextSpandexCollection():
+class TextJemdocCollection():
     """
     Given collection of texts transform into collection of Spandexes
     """
@@ -22,7 +22,4 @@ class TextSpandexCollection():
 
     def __iter__(self):
         for text in self.texts:
-            yield text_to_spandex(text)
-
-
-
+            yield text_to_jembatan_doc(text)
